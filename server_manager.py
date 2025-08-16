@@ -1,0 +1,102 @@
+import threading
+import socket
+import logging
+import json
+from pyftpdlib.authorizers import DummyAuthorizer
+from pyftpdlib.handlers import FTPHandler
+from pyftpdlib.servers import FTPServer
+from virtual_network import VirtualNetwork
+from server_ftp_handler import ServerFTPHandler
+from config import SERVER_IP, SERVER_FTP_PORT, SERVER_SOCKET_PORT, SERVER_DISK_PATH
+
+class FTPServerManager:
+    def __init__(self):
+        self.ip_address = SERVER_IP
+        self.ftp_port = SERVER_FTP_PORT
+        self.disk_path = SERVER_DISK_PATH
+        self.network = VirtualNetwork(self)
+        self.pending_files = {}
+        self.pending_files_lock = threading.Lock()
+        self.ftp_server = None
+        self.socket_server = None
+        self.socket_port = SERVER_SOCKET_PORT
+        self.active_nodes = set()
+        self.active_nodes_lock = threading.Lock()
+        self.logger = None
+        self._setup_logging()
+
+    def _setup_logging(self):
+        """Sets up centralized logging for the server."""
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler("server.log"),
+                logging.StreamHandler()
+            ])
+        self.logger = logging.getLogger("FTPServerManager")
+
+    def start(self):
+        """Start the FTP server and socket server."""
+        authorizer = DummyAuthorizer()
+        authorizer.add_user("user", "password", self.disk_path, perm="elradfmw")
+        handler = ServerFTPHandler  # Use the server handler
+        handler.authorizer = authorizer
+        self.ftp_server = FTPServer(("0.0.0.0", self.ftp_port), handler)
+        self.ftp_server.node = None
+        self.ftp_server.manager = self
+        ftp_thread = threading.Thread(target=self.ftp_server.serve_forever, daemon=True)
+        ftp_thread.start()
+        print(f"FTP server started on {self.ip_address}:{self.ftp_port}")
+
+        self.socket_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket_server.bind(("0.0.0.0", self.socket_port))
+        self.socket_server.listen(10)  # Increased backlog for more concurrent connections
+        socket_thread = threading.Thread(target=self._handle_socket_connections, daemon=True)
+        socket_thread.start()
+        print(f"Socket server started on {self.ip_address}:{self.socket_port}")
+
+    def stop(self):
+        """Stop the FTP server and socket server."""
+        if self.ftp_server:
+            self.ftp_server.close_all()
+            self.logger.info(f"FTP server stopped for {self.ip_address}")
+        if self.socket_server:
+            self.socket_server.close()
+            self.logger.info(f"Socket server stopped for {self.ip_address}")
+
+    def _handle_socket_connections(self):
+        """Handle incoming socket connections from nodes."""
+        while True:
+            try:
+                client_socket, addr = self.socket_server.accept()
+                threading.Thread(target=self._process_socket_message, args=(client_socket,), daemon=True).start()
+            except Exception as e:
+                self.logger.error(f"Socket server error: {e}", exc_info=True)
+                break
+
+    def _process_socket_message(self, client_socket):
+        """Process node availability messages."""
+        try:
+            data = client_socket.recv(1024).decode()
+            message = json.loads(data)
+            if message.get("action") == "node_started":
+                node_name = message.get("node_name")
+                self.logger.info(f"Node {node_name} started, checking for pending files")
+                with self.active_nodes_lock:
+                    self.active_nodes.add(node_name)  # Mark node as active
+                self.network.forward_file(None, node_name)
+            client_socket.close()
+        except Exception as e:
+            self.logger.error(f"Error processing socket message: {e}", exc_info=True)
+            client_socket.close()
+
+    def check_node_and_forward(self, folder_name, target_node, file_path, original_filename):
+        """Check if the target node is available and forward the file."""
+        with self.active_nodes_lock:
+            if target_node in self.active_nodes:
+                self.logger.info(f"Target node {target_node} is active, forwarding file {original_filename}")
+                self.network.forward_file(folder_name, target_node)
+            else:
+                self.logger.warning(f"Target node {target_node} is not active, keeping file {original_filename} in pending")

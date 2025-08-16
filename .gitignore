@@ -1,0 +1,11 @@
+#pycache
+__pycache__/
+
+#disk images
+assets/
+
+#vscode
+.vscode/
+
+#server log
+server.log
