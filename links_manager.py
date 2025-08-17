@@ -7,6 +7,9 @@ class LinksManager:
         self.links_file = os.path.join(SERVER_DISK_PATH, "links.json")
         self.links = {}
         self._load_links()
+        # Define cloud nodes by their IP addresses
+        self.cloud_node_ips = ["192.168.1.6", "192.168.1.7", "192.168.1.8"]
+        self.cloud_node_names = [info["node_name"] for ip, info in IP_MAP.items() if ip in self.cloud_node_ips]
 
     def _load_links(self):
         """Load links from links.json, if it exists."""
@@ -55,7 +58,10 @@ class LinksManager:
 
     def is_transfer_allowed(self, sender_node, target_node):
         """Check if a transfer between sender_node and target_node is allowed."""
-        self._load_links()  # Reload links from links.json to ensure latest state
+        self._load_links()  # Reload links to ensure latest state
+        # Exempt cloud nodes from link registration checks
+        if target_node in self.cloud_node_names:
+            return True
         for link_nodes in self.links.values():
             if sender_node in link_nodes and target_node in link_nodes:
                 return True
@@ -96,4 +102,3 @@ class LinksManager:
                 break
             except Exception as e:
                 print(f"Error processing command: {e}")
-

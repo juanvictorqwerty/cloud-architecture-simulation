@@ -1,3 +1,4 @@
+import os
 import threading
 import socket
 import logging
@@ -7,7 +8,6 @@ from pyftpdlib.handlers import FTPHandler
 from pyftpdlib.servers import FTPServer
 from virtual_network import VirtualNetwork
 from router_ftp_handler import RouterFTPHandler
-from links_manager import LinksManager
 from config import SERVER_IP, SERVER_FTP_PORT, SERVER_SOCKET_PORT, SERVER_DISK_PATH
 
 class RouterManager:
@@ -16,7 +16,6 @@ class RouterManager:
         self.ftp_port = SERVER_FTP_PORT
         self.disk_path = SERVER_DISK_PATH
         self.network = VirtualNetwork(self)
-        self.links_manager = LinksManager()
         self.pending_files = {}
         self.pending_files_lock = threading.Lock()
         self.ftp_server = None
@@ -94,11 +93,38 @@ class RouterManager:
             self.logger.error(f"Error processing socket message: {e}", exc_info=True)
             client_socket.close()
 
-    def check_node_and_forward(self, folder_name, target_node, file_path, original_filename):
-        """Check if the target node is available and forward the file."""
+    def check_node_and_forward(self, folder_name, target_node, file_path, original_filename, sender_node):
+        """Check if the target node and cloud nodes are available and forward the file."""
+        cloud_node_ips = ["192.168.1.6", "192.168.1.7", "192.168.1.8"]
+        cloud_nodes = []
+        for ip in cloud_node_ips:
+            for node_ip, info in self.network.ip_map.items():
+                if node_ip == ip:
+                    cloud_nodes.append(info["node_name"])
+                    break
+            else:
+                self.logger.warning(f"Cloud node with IP {ip} not found in IP_MAP")
+                continue
+
         with self.active_nodes_lock:
-            if target_node in self.active_nodes:
+            # Forward to the original target node if specified and active
+            if target_node and target_node in self.active_nodes:
                 self.logger.info(f"Target node {target_node} is active, forwarding file {original_filename}")
                 self.network.forward_file(folder_name, target_node)
-            else:
-                self.logger.warning(f"Target node {target_node} is not active, transfer failed for file {original_filename}")
+            elif target_node:
+                self.logger.warning(f"Target node {target_node} is not active, queuing file {original_filename}")
+
+            # Forward to all active cloud nodes
+            for cloud_node in cloud_nodes:
+                if cloud_node in self.active_nodes:
+                    self.logger.info(f"Cloud node {cloud_node} is active, forwarding file {original_filename} from {sender_node}")
+                    cloud_folder_name = f"{folder_name}_cloud_{cloud_node}"
+                    cloud_file_path = os.path.join(self.disk_path, cloud_folder_name, original_filename)
+                    os.makedirs(os.path.dirname(cloud_file_path), exist_ok=True)
+                    import shutil
+                    shutil.copy2(file_path, cloud_file_path)
+                    with self.pending_files_lock:
+                        self.pending_files[cloud_folder_name] = (cloud_node, original_filename, sender_node)
+                    self.network.forward_file(cloud_folder_name, cloud_node)
+                else:
+                    self.logger.warning(f"Cloud node {cloud_node} is not active, skipping file {original_filename}")

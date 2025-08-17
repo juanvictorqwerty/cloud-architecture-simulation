@@ -632,3 +632,91 @@ Traceback (most recent call last):
   File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
     fd, addr = self._accept()
 OSError: [WinError 10038] An operation was attempted on something that is not a socket
+2025-08-17 16:22:21,320 - pyftpdlib - INFO - concurrency model: async
+2025-08-17 16:22:21,320 - pyftpdlib - INFO - masquerade (NAT) address: None
+2025-08-17 16:22:21,320 - pyftpdlib - INFO - passive ports: None
+2025-08-17 16:22:21,320 - pyftpdlib - INFO - >>> starting FTP server on 0.0.0.0:2120, pid=18488 <<<
+2025-08-17 16:22:37,279 - RouterManager - INFO - Node node1 started, checking for pending files
+2025-08-17 16:22:51,455 - RouterManager - INFO - Node node2 started, checking for pending files
+2025-08-17 16:23:17,475 - pyftpdlib - INFO - 127.0.0.1:56511-[] FTP session opened (connect)
+2025-08-17 16:23:17,574 - pyftpdlib - INFO - 127.0.0.1:56511-[user] USER 'user' logged in.
+2025-08-17 16:23:18,102 - pyftpdlib - INFO - 127.0.0.1:56511-[user] FTP session closed (disconnect).
+2025-08-17 16:23:18,134 - pyftpdlib - INFO - 127.0.0.1:56514-[] FTP session opened (connect)
+2025-08-17 16:23:18,273 - pyftpdlib - INFO - 127.0.0.1:56514-[user] USER 'user' logged in.
+2025-08-17 16:23:23,635 - pyftpdlib - INFO - 127.0.0.1:56514-[user] STOR C:\Users\JUAN MIKE\Desktop\Projets\cloud-architecture-simulation\assets\server\10M completed=1 bytes=10485792 seconds=4.985
+2025-08-17 16:23:23,776 - RouterManager - ERROR - No link exists between sender node1 and target node2
+2025-08-17 16:23:23,859 - pyftpdlib - INFO - 127.0.0.1:56514-[user] FTP session closed (disconnect).
+2025-08-17 16:26:08,372 - pyftpdlib - INFO - 127.0.0.1:56554-[] FTP session opened (connect)
+2025-08-17 16:26:08,468 - pyftpdlib - INFO - 127.0.0.1:56554-[user] USER 'user' logged in.
+2025-08-17 16:26:08,952 - pyftpdlib - INFO - 127.0.0.1:56554-[user] FTP session closed (disconnect).
+2025-08-17 16:26:08,973 - pyftpdlib - INFO - 127.0.0.1:56557-[] FTP session opened (connect)
+2025-08-17 16:26:09,101 - pyftpdlib - INFO - 127.0.0.1:56557-[user] USER 'user' logged in.
+2025-08-17 16:26:14,988 - pyftpdlib - INFO - 127.0.0.1:56557-[user] STOR C:\Users\JUAN MIKE\Desktop\Projets\cloud-architecture-simulation\assets\server\10M completed=1 bytes=10485792 seconds=5.562
+2025-08-17 16:26:15,360 - RouterManager - INFO - Received chunk 1/1 for 10M (folder: file_001, from: node1, to: node2)
+2025-08-17 16:26:15,384 - RouterManager - INFO - Stored 10M in folder file_001 for node2
+2025-08-17 16:26:15,415 - RouterManager - INFO - Target node node2 is active, forwarding file 10M
+2025-08-17 16:26:15,567 - pyftpdlib - INFO - 127.0.0.1:56557-[user] FTP session closed (disconnect).
+2025-08-17 17:56:08,836 - RouterManager - INFO - FTP server stopped for 127.0.0.1
+2025-08-17 17:56:08,836 - pyftpdlib - INFO - >>> shutting down FTP server, 0 socket(s), pid=18488 <<<
+2025-08-17 17:56:08,836 - RouterManager - INFO - Socket server stopped for 127.0.0.1
+2025-08-17 17:56:08,836 - RouterManager - ERROR - Socket server error: [WinError 10038] An operation was attempted on something that is not a socket
+Traceback (most recent call last):
+  File "C:\Users\JUAN MIKE\Desktop\Projets\cloud-architecture-simulation\router_manager.py", line 75, in _handle_socket_connections
+    threading.Thread(target=self._process_socket_message, args=(client_socket,), daemon=True).start()
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
+    fd, addr = self._accept()
+OSError: [WinError 10038] An operation was attempted on something that is not a socket
+2025-08-17 17:57:16,508 - pyftpdlib - INFO - concurrency model: async
+2025-08-17 17:57:16,508 - pyftpdlib - INFO - masquerade (NAT) address: None
+2025-08-17 17:57:16,508 - pyftpdlib - INFO - passive ports: None
+2025-08-17 17:57:16,508 - pyftpdlib - INFO - >>> starting FTP server on 0.0.0.0:2120, pid=23716 <<<
+2025-08-17 17:58:22,053 - RouterManager - INFO - Node cloud_node1 started, checking for pending files
+2025-08-17 17:59:24,998 - RouterManager - INFO - Node cloud_node2 started, checking for pending files
+2025-08-17 17:59:53,827 - RouterManager - INFO - Node cloud_node3 started, checking for pending files
+2025-08-17 18:00:03,446 - RouterManager - INFO - Node node1 started, checking for pending files
+2025-08-17 18:00:16,781 - RouterManager - INFO - Node node2 started, checking for pending files
+2025-08-17 18:00:54,256 - pyftpdlib - INFO - 127.0.0.1:50751-[] FTP session opened (connect)
+2025-08-17 18:00:54,353 - pyftpdlib - INFO - 127.0.0.1:50751-[user] USER 'user' logged in.
+2025-08-17 18:00:54,913 - pyftpdlib - INFO - 127.0.0.1:50751-[user] FTP session closed (disconnect).
+2025-08-17 18:00:54,959 - pyftpdlib - INFO - 127.0.0.1:50754-[] FTP session opened (connect)
+2025-08-17 18:00:55,019 - pyftpdlib - INFO - 127.0.0.1:50754-[user] USER 'user' logged in.
+2025-08-17 18:01:01,899 - pyftpdlib - INFO - 127.0.0.1:50754-[user] STOR C:\Users\JUAN MIKE\Desktop\Projets\cloud-architecture-simulation\assets\server\10M completed=1 bytes=10485792 seconds=6.453
+2025-08-17 18:01:02,115 - RouterManager - INFO - Received chunk 1/1 for 10M (folder: file_001, target: node2, sender: node1)
+2025-08-17 18:01:02,152 - RouterManager - INFO - Stored 10M in folder file_001 for node2 from node1
+2025-08-17 18:01:02,175 - RouterManager - INFO - Target node node2 is active, forwarding file 10M
+2025-08-17 18:01:02,216 - RouterManager - INFO - Cloud node cloud_node1 is active, forwarding file 10M from node1
+2025-08-17 18:01:02,969 - RouterManager - INFO - Cloud node cloud_node2 is active, forwarding file 10M from node1
+2025-08-17 18:01:03,577 - RouterManager - INFO - Cloud node cloud_node3 is active, forwarding file 10M from node1
+2025-08-17 18:01:04,433 - pyftpdlib - INFO - 127.0.0.1:50754-[user] FTP session closed (disconnect).
+2025-08-17 18:13:47,940 - RouterManager - INFO - FTP server stopped for 127.0.0.1
+2025-08-17 18:13:47,940 - pyftpdlib - INFO - >>> shutting down FTP server, 0 socket(s), pid=23716 <<<
+2025-08-17 18:13:47,940 - RouterManager - INFO - Socket server stopped for 127.0.0.1
+2025-08-17 18:13:47,940 - RouterManager - ERROR - Socket server error: [WinError 10038] An operation was attempted on something that is not a socket
+Traceback (most recent call last):
+  File "C:\Users\JUAN MIKE\Desktop\Projets\cloud-architecture-simulation\router_manager.py", line 74, in _handle_socket_connections
+    client_socket, addr = self.socket_server.accept()
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
+    fd, addr = self._accept()
+OSError: [WinError 10038] An operation was attempted on something that is not a socket
+2025-08-17 18:14:17,174 - pyftpdlib - INFO - concurrency model: async
+2025-08-17 18:14:17,174 - pyftpdlib - INFO - masquerade (NAT) address: None
+2025-08-17 18:14:17,174 - pyftpdlib - INFO - passive ports: None
+2025-08-17 18:14:17,174 - pyftpdlib - INFO - >>> starting FTP server on 0.0.0.0:2120, pid=13256 <<<
+2025-08-17 18:14:46,580 - RouterManager - INFO - Node cloud_node1 started, checking for pending files
+2025-08-17 18:14:51,034 - RouterManager - INFO - Node cloud_node2 started, checking for pending files
+2025-08-17 18:14:54,604 - RouterManager - INFO - Node cloud_node3 started, checking for pending files
+2025-08-17 18:15:24,365 - RouterManager - INFO - Node node1 started, checking for pending files
+2025-08-17 18:15:29,137 - RouterManager - INFO - Node node2 started, checking for pending files
+2025-08-17 18:16:28,609 - pyftpdlib - INFO - 127.0.0.1:50981-[] FTP session opened (connect)
+2025-08-17 18:16:28,703 - pyftpdlib - INFO - 127.0.0.1:50981-[user] USER 'user' logged in.
+2025-08-17 18:16:29,238 - pyftpdlib - INFO - 127.0.0.1:50981-[user] FTP session closed (disconnect).
+2025-08-17 18:16:29,287 - pyftpdlib - INFO - 127.0.0.1:50984-[] FTP session opened (connect)
+2025-08-17 18:16:29,386 - pyftpdlib - INFO - 127.0.0.1:50984-[user] USER 'user' logged in.
+2025-08-17 18:16:36,101 - pyftpdlib - INFO - 127.0.0.1:50984-[user] STOR C:\Users\JUAN MIKE\Desktop\Projets\cloud-architecture-simulation\assets\server\10M completed=1 bytes=10485792 seconds=6.281
+2025-08-17 18:16:36,363 - RouterManager - INFO - Received chunk 1/1 for 10M (folder: file_001, target: node2, sender: node1)
+2025-08-17 18:16:36,401 - RouterManager - INFO - Stored 10M in folder file_001 for node2 from node1
+2025-08-17 18:16:36,434 - RouterManager - INFO - Target node node2 is active, forwarding file 10M
+2025-08-17 18:16:36,473 - RouterManager - INFO - Cloud node cloud_node1 is active, forwarding file 10M from node1
+2025-08-17 18:16:37,080 - RouterManager - INFO - Cloud node cloud_node2 is active, forwarding file 10M from node1
+2025-08-17 18:16:37,529 - RouterManager - INFO - Cloud node cloud_node3 is active, forwarding file 10M from node1
+2025-08-17 18:16:38,471 - pyftpdlib - INFO - 127.0.0.1:50984-[user] FTP session closed (disconnect).
