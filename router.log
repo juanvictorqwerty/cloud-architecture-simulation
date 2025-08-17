@@ -446,3 +446,67 @@ Traceback (most recent call last):
   File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
     fd, addr = self._accept()
 OSError: [WinError 10038] An operation was attempted on something that is not a socket
+2025-08-17 02:07:56,030 - pyftpdlib - INFO - concurrency model: async
+2025-08-17 02:07:56,031 - pyftpdlib - INFO - masquerade (NAT) address: None
+2025-08-17 02:07:56,031 - pyftpdlib - INFO - passive ports: None
+2025-08-17 02:07:56,031 - pyftpdlib - INFO - >>> starting FTP server on 0.0.0.0:2120, pid=7524 <<<
+2025-08-17 02:08:00,354 - RouterManager - INFO - Node node1 started, checking for pending files
+2025-08-17 02:08:04,291 - RouterManager - INFO - Node node2 started, checking for pending files
+2025-08-17 02:08:19,745 - pyftpdlib - INFO - 127.0.0.1:57789-[] FTP session opened (connect)
+2025-08-17 02:08:19,886 - pyftpdlib - INFO - 127.0.0.1:57789-[user] USER 'user' logged in.
+2025-08-17 02:08:20,445 - pyftpdlib - INFO - 127.0.0.1:57789-[user] FTP session closed (disconnect).
+2025-08-17 02:08:20,477 - pyftpdlib - INFO - 127.0.0.1:57792-[] FTP session opened (connect)
+2025-08-17 02:08:20,618 - pyftpdlib - INFO - 127.0.0.1:57792-[user] USER 'user' logged in.
+2025-08-17 02:08:27,469 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.438
+2025-08-17 02:08:27,750 - RouterManager - INFO - Received chunk 1/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:08:32,566 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=4.375
+2025-08-17 02:08:32,738 - RouterManager - INFO - Received chunk 2/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:08:39,398 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.282
+2025-08-17 02:08:39,603 - RouterManager - INFO - Received chunk 3/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:08:46,114 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.031
+2025-08-17 02:08:46,302 - RouterManager - INFO - Received chunk 4/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:08:51,880 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=5.156
+2025-08-17 02:08:52,061 - RouterManager - INFO - Received chunk 5/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:08:58,668 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.172
+2025-08-17 02:08:58,856 - RouterManager - INFO - Received chunk 6/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:09:05,077 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=5.765
+2025-08-17 02:09:05,249 - RouterManager - INFO - Received chunk 7/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:09:12,046 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.359
+2025-08-17 02:09:12,250 - RouterManager - INFO - Received chunk 8/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:09:17,152 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=4.468
+2025-08-17 02:09:17,356 - RouterManager - INFO - Received chunk 9/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:09:23,821 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.015
+2025-08-17 02:09:23,992 - RouterManager - INFO - Received chunk 10/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:09:30,636 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.235
+2025-08-17 02:09:30,823 - RouterManager - INFO - Received chunk 11/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:09:37,399 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.172
+2025-08-17 02:09:37,603 - RouterManager - INFO - Received chunk 12/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:09:44,265 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.266
+2025-08-17 02:09:44,419 - RouterManager - INFO - Received chunk 13/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:09:51,555 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.657
+2025-08-17 02:09:51,774 - RouterManager - INFO - Received chunk 14/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:09:58,351 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.11
+2025-08-17 02:09:58,551 - RouterManager - INFO - Received chunk 15/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:10:04,100 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=5.141
+2025-08-17 02:10:04,299 - RouterManager - INFO - Received chunk 16/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:10:10,565 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=5.844
+2025-08-17 02:10:10,812 - RouterManager - INFO - Received chunk 17/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:10:17,720 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.438
+2025-08-17 02:10:17,909 - RouterManager - INFO - Received chunk 18/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:10:24,718 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.391
+2025-08-17 02:10:24,906 - RouterManager - INFO - Received chunk 19/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:10:31,657 - pyftpdlib - INFO - 127.0.0.1:57792-[user] STOR E:\cloud-architecture-simulation\assets\server\200M completed=1 bytes=10485792 seconds=6.281
+2025-08-17 02:10:31,890 - RouterManager - INFO - Received chunk 20/20 for 200M (folder: file_003, target: node2)
+2025-08-17 02:10:31,936 - RouterManager - INFO - Stored 200M in folder file_003 for node2
+2025-08-17 02:10:31,967 - RouterManager - INFO - Target node node2 is active, forwarding file 200M
+2025-08-17 02:10:32,138 - pyftpdlib - INFO - 127.0.0.1:57792-[user] FTP session closed (disconnect).
+2025-08-17 02:21:59,119 - pyftpdlib - INFO - >>> shutting down FTP server, 0 socket(s), pid=7524 <<<
+2025-08-17 02:21:59,120 - RouterManager - INFO - FTP server stopped for 127.0.0.1
+2025-08-17 02:21:59,121 - RouterManager - INFO - Socket server stopped for 127.0.0.1
+2025-08-17 02:21:59,121 - RouterManager - ERROR - Socket server error: [WinError 10038] An operation was attempted on something that is not a socket
+Traceback (most recent call last):
+  File "E:\cloud-architecture-simulation\router_manager.py", line 73, in _handle_socket_connections
+    client_socket, addr = self.socket_server.accept()
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
+    fd, addr = self._accept()
+OSError: [WinError 10038] An operation was attempted on something that is not a socket
