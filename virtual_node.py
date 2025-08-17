@@ -3,7 +3,7 @@ import json
 import socket
 from virtual_network import VirtualNetwork
 import threading
-from config import  IP_MAP , SERVER_IP, SERVER_SOCKET_PORT
+from config import IP_MAP, SERVER_IP, SERVER_SOCKET_PORT
 
 class VirtualNode:
     def __init__(self, name, disk_path, ip_address, ftp_port):
@@ -11,7 +11,6 @@ class VirtualNode:
         self.disk_path = disk_path
         self.ip_address = ip_address
         self.ftp_port = ftp_port
-        self.total_storage = 1024 * 1024 * 1024
         self.virtual_disk = {}
         self.memory = {}
         self.is_running = False
@@ -51,10 +50,6 @@ class VirtualNode:
         except IOError as e:
             print(f"Error saving metadata to {metadata_path}: {e}")
 
-    def _check_storage(self, size):
-        used_storage = sum(self.virtual_disk.values())
-        return used_storage + size <= self.total_storage
-
     def send(self, filename, target_node_name):
         if not self.is_running:
             return f"Error: VM {self.name} is not running"
@@ -63,149 +58,111 @@ class VirtualNode:
             return f"Error: Target node '{target_node_name}' does not exist."
 
         target_ip = self.network.server_ip
+        result = [None]  # Use a list to store result, as nonlocal variables in inner functions need mutable objects
         def send_task():
             try:
-                result = self.network.send_file(filename, self.ip_address, target_ip, self.virtual_disk, target_node_name)
-                print(f"Send result: {result}")
+                result[0] = self.network.send_file(filename, self.ip_address, self.virtual_disk, target_node_name)
             except Exception as e:
-                print(f"Error in send_file thread: {e}")
-        threading.Thread(target=send_task, args=()).start()
-        return f"Attempting to send {filename} to {target_node_name} in the background."
+                result[0] = f"Error in send_file thread: {e}"
+        
+        thread = threading.Thread(target=send_task)
+        thread.start()
+        thread.join()  # Wait for the thread to complete to get the result
+        return result[0] if result[0] else f"Attempting to send {filename} to {target_node_name} in the background."
 
     def start(self):
         if self.is_running:
             return f"VM {self.name} is already running"
         self.is_running = True
-        # Notify server via socket
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((SERVER_IP, SERVER_SOCKET_PORT))
             message = json.dumps({"action": "node_started", "node_name": self.name})
             sock.send(message.encode())
             sock.close()
-            print(f"Notified server of {self.name} startup")
+            print(f"VM {self.name} started")
         except Exception as e:
-            print(f"Error notifying server: {e}")
+            print(f"Error notifying router of start: {e}")
         return f"VM {self.name} started"
 
     def stop(self):
         if not self.is_running:
             return f"VM {self.name} is already stopped"
         self.is_running = False
-        self._save_disk()
         self.network.stop_ftp_server(self.ip_address)
+        print(f"VM {self.name} stopped")
         return f"VM {self.name} stopped"
 
     def ls(self):
-        if not self.is_running:
-            return f"Error: VM {self.name} is not running"
-        if not self.virtual_disk:
-            return "Directory is empty"
-        return "\n".join(f"{name}: {size} bytes" for name, size in self.virtual_disk.items())
+        return "\n".join([f"{k} ({v} bytes)" for k, v in self.virtual_disk.items() if k != "disk_metadata.json"])
 
     def touch(self, filename, size=0):
-        if not self.is_running:
-            return f"Error: VM {self.name} is not running"
-        try:
-            size = int(size)
-            if size < 0:
-                return "Error: Size cannot be negative"
-        except ValueError:
-            return "Error: Size must be an integer"
-        size_bytes = size * 1024 * 1024
-        if filename not in self.virtual_disk:
-            if not self._check_storage(size_bytes):
-                return f"Error: Not enough storage on disk"
-            file_path = os.path.join(self.disk_path, filename)
-            with open(file_path, 'wb') as f:
-                f.write(b"\0" * size_bytes)
-            self.virtual_disk[filename] = size_bytes
-            self._save_disk()
-            return f"Created file: {filename} with {size_bytes} bytes ({size} MB)"
-        else:
-            os.utime(os.path.join(self.disk_path, filename))
-            return f"Updated timestamp for file: {filename}"
-
-    def trunc(self, filename, size=0):
-        if not self.is_running:
-            return f"Error: VM {self.name} is not running"
-        try:
-            size = int(size)
-            if size < 0:
-                return "Error: Size cannot be negative"
-        except ValueError:
-            return "Error: Size must be an integer"
-        size_bytes = size * 1024 * 1024
         if filename in self.virtual_disk:
-            if not self._check_storage(size_bytes - self.virtual_disk[filename]):
-                return f"Error: Not enough storage on disk"
-            file_path = os.path.join(self.disk_path, filename)
+            return f"Error: File {filename} already exists"
+        file_path = os.path.join(self.disk_path, filename)
+        try:
+            # Convert MB to bytes (1 MB = 1,048,576 bytes)
+            size_bytes = size * 1024 * 1024
             with open(file_path, 'wb') as f:
-                f.write(b"\0" * size_bytes)
+                if size_bytes > 0:
+                    f.write(b'\0' * size_bytes)
             self.virtual_disk[filename] = size_bytes
             self._save_disk()
-            return f"Truncated {filename} to {size_bytes} bytes ({size} MB)"
-        else:
-            return f"File {filename} does not exist"
+            return f"Created {filename} with size {size} MB"
+        except Exception as e:
+            return f"Error creating file {filename}: {e}"
+
+    def trunc(self, filename, size):
+        if filename not in self.virtual_disk:
+            return f"Error: File {filename} not found"
+        file_path = os.path.join(self.disk_path, filename)
+        try:
+            # Convert MB to bytes (1 MB = 1,048,576 bytes)
+            size_bytes = size * 1024 * 1024
+            with open(file_path, 'wb') as f:
+                f.write(b'\0' * size_bytes)
+            self.virtual_disk[filename] = size_bytes
+            self._save_disk()
+            return f"Truncated {filename} to {size} MB"
+        except Exception as e:
+            return f"Error truncating file {filename}: {e}"
 
     def del_file(self, filename):
-        if not self.is_running:
-            return f"Error: VM {self.name} is not running"
         if filename == "all":
-            deleted_files = []
             for fname in list(self.virtual_disk.keys()):
-                file_path = os.path.join(self.disk_path, fname)
-                try:
-                    os.remove(file_path)
-                    deleted_files.append(fname)
-                except OSError as e:
-                    print(f"Error deleting {fname}: {e}")
-            for fname in deleted_files:
-                del self.virtual_disk[fname]
+                if fname != "disk_metadata.json":
+                    try:
+                        os.remove(os.path.join(self.disk_path, fname))
+                        del self.virtual_disk[fname]
+                    except Exception as e:
+                        print(f"Error deleting {fname}: {e}")
             self._save_disk()
-            return f"Deleted {len(deleted_files)} file(s)" if deleted_files else "No files to delete"
-        else:
-            if filename not in self.virtual_disk:
-                return f"Error: File {filename} does not exist"
-            file_path = os.path.join(self.disk_path, filename)
-            try:
-                os.remove(file_path)
-                del self.virtual_disk[filename]
-                self._save_disk()
-                return f"Deleted {filename}"
-            except OSError as e:
-                return f"Error deleting {filename}: {e}"
+            return "Deleted all files"
+        if filename not in self.virtual_disk:
+            return f"Error: File {filename} not found"
+        try:
+            os.remove(os.path.join(self.disk_path, filename))
+            del self.virtual_disk[filename]
+            self._save_disk()
+            return f"Deleted {filename}"
+        except Exception as e:
+            return f"Error deleting {filename}: {e}"
 
     def diskprop(self):
-        if not self.is_running:
-            return f"Error: VM {self.name} is not running"
-        total_size_bytes = self.total_storage
-        occupied_size_bytes = sum(self.virtual_disk.values())
-        free_size_bytes = total_size_bytes - occupied_size_bytes
-        total_size_gb = total_size_bytes / (1024 * 1024 * 1024)
-        occupied_size_mb = occupied_size_bytes / (1024 * 1024)
-        free_size_mb = free_size_bytes / (1024 * 1024)
-        return (f"Disk Properties for {self.name}:\n"
-                f"Total Size: {total_size_gb:.2f} GB\n"
-                f"Occupied Space: {occupied_size_mb:.2f} MB\n"
-                f"Free Space: {free_size_mb:.2f} MB")
+        used = sum(self.virtual_disk.values())
+        return f"Disk: {used} bytes used"
 
     def set_var(self, var_name, value):
-        if not self.is_running:
-            return f"Error: VM {self.name} is not running"
         try:
             self.memory[var_name] = int(value)
-            return f"Set {var_name} = {value} in memory as an integer"
+            return f"Set {var_name} = {value}"
         except ValueError:
-            return f"Error: Value must be an integer"
+            return f"Error: {value} is not a valid integer"
 
     def get_var(self, var_name):
-        if not self.is_running:
-            return f"Error: VM {self.name} is not running"
         if var_name in self.memory:
             return f"{var_name} = {self.memory[var_name]}"
-        else:
-            return f"Variable {var_name} not found in memory"
+        return f"Error: Variable {var_name} not found in memory"
 
     def execute_instruction(self, instruction):
         if not self.is_running:
