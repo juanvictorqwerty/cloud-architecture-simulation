@@ -9,7 +9,7 @@ class NodeFTPHandler(FTPHandler):
         super().__init__(*args, **kwargs)
         self.session_state = {
             "current_filename": None,
-            "expected_chunks": 5,
+            "expected_chunks": None,  # Will be set dynamically from header
             "received_chunks": 0,
             "total_received_size": 0,
             "temp_file_path": None,
@@ -30,8 +30,8 @@ class NodeFTPHandler(FTPHandler):
         with open(file_path, 'rb') as f:
             data = f.read()
 
-        # Node expects a 2-part header from the server
-        header_pattern = re.compile(b"CHUNK:(\d+):(\d+)\n")
+        # Node expects a 3-part header from the router: CHUNK:chunk_number:chunk_size:num_chunks
+        header_pattern = re.compile(b"CHUNK:(\d+):(\d+):(\d+)\n")
         match = header_pattern.match(data)
         if not match:
             print(f"Error: Invalid chunk header in {file_path}")
@@ -43,6 +43,7 @@ class NodeFTPHandler(FTPHandler):
 
         chunk_number = int(match.group(1))
         chunk_size = int(match.group(2))
+        num_chunks = int(match.group(3))
         header_end = match.end()
         payload = data[header_end:header_end + chunk_size]
         actual_payload_size = len(payload)
@@ -55,6 +56,7 @@ class NodeFTPHandler(FTPHandler):
         
         if chunk_number == 1:
             self.session_state["current_filename"] = filename
+            self.session_state["expected_chunks"] = num_chunks
             self.session_state["received_chunks"] = 1
             self.session_state["total_received_size"] = actual_payload_size
             self.session_state["temp_file_path"] = tempfile.NamedTemporaryFile(delete=False, dir=os.path.dirname(file_path)).name
@@ -89,10 +91,8 @@ class NodeFTPHandler(FTPHandler):
             
             # Reset state for the next transfer
             self.session_state = {k: None for k in self.session_state}
-            self.session_state["expected_chunks"] = 5
+            self.session_state["expected_chunks"] = None
 
-        # If you intended to remove a file, complete the statement and handle exceptions
-        # Example: try to remove the original chunk file after processing
         try:
             os.remove(file_path)
         except Exception as e:

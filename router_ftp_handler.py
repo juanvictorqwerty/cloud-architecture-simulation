@@ -9,7 +9,7 @@ class RouterFTPHandler(FTPHandler):
         super().__init__(*args, **kwargs)
         self.session_state = {
             "current_filename": None,
-            "expected_chunks": 5,
+            "expected_chunks": None,  # Will be set dynamically from header
             "received_chunks": 0,
             "total_received_size": 0,
             "target_node": None,
@@ -35,8 +35,8 @@ class RouterFTPHandler(FTPHandler):
         with open(file_path, 'rb') as f:
             data = f.read()
 
-        # Router expects a 3-part header from a node
-        header_pattern = re.compile(b"CHUNK:(\d+):(\d+):([^\n]+)\n")
+        # Router expects a 4-part header: CHUNK:chunk_number:chunk_size:num_chunks:target_node
+        header_pattern = re.compile(b"CHUNK:(\d+):(\d+):(\d+):([^\n]+)\n")
         match = header_pattern.match(data)
         if not match:
             logger.error(f"Invalid chunk header in {file_path}")
@@ -44,12 +44,15 @@ class RouterFTPHandler(FTPHandler):
                 os.remove(file_path)
             except OSError:
                 pass
+            self.respond("550 Invalid chunk header")
             return
 
         chunk_number = int(match.group(1))
         chunk_size = int(match.group(2))
-        target_node = match.group(3).decode()
+        num_chunks = int(match.group(3))
+        target_node = match.group(4).decode()
         header_end = match.end()
+
         # Validate target_node
         if not any(node_info['node_name'] == target_node for node_info in self.server.manager.network.ip_map.values()):
             logger.error(f"Invalid target node '{target_node}' in header from {file_path}. Node does not exist.")
@@ -57,13 +60,26 @@ class RouterFTPHandler(FTPHandler):
                 os.remove(file_path)
             except OSError:
                 pass
+            self.respond(f"550 Error: Target node {target_node} does not exist")
             return
+
+        # Check if target node is active before processing
+        with self.server.manager.active_nodes_lock:
+            if target_node not in self.server.manager.active_nodes:
+                logger.warning(f"Target node {target_node} is not active, rejecting file transfer")
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass
+                self.respond(f"550 Error: Target node {target_node} is not active")
+                return
 
         payload = data[header_end:header_end + chunk_size]
         actual_payload_size = len(payload)
 
         if actual_payload_size != chunk_size:
             logger.error(f"Chunk {chunk_number} size mismatch, expected {chunk_size}, got {actual_payload_size}")
+            self.respond("550 Chunk size mismatch")
             return
 
         original_filename = os.path.basename(file_path)
@@ -73,6 +89,7 @@ class RouterFTPHandler(FTPHandler):
             folder_path = os.path.join(self.server.manager.disk_path, folder_name)
             os.makedirs(folder_path, exist_ok=True)
             self.session_state["current_filename"] = original_filename
+            self.session_state["expected_chunks"] = num_chunks
             self.session_state["received_chunks"] = 1
             self.session_state["total_received_size"] = actual_payload_size
             self.session_state["target_node"] = target_node
@@ -87,9 +104,11 @@ class RouterFTPHandler(FTPHandler):
             # Add validation for subsequent chunks
             if original_filename != self.session_state.get("current_filename") or target_node != self.session_state.get("target_node"):
                 logger.error(f"Chunk {chunk_number} for {original_filename}:{target_node} does not match expected {self.session_state.get('current_filename')}:{self.session_state.get('target_node')}")
+                self.respond("550 Chunk mismatch")
                 return
             if chunk_number != self.session_state.get("received_chunks", 0) + 1:
                 logger.error(f"Received chunk {chunk_number} out of order, expected {self.session_state.get('received_chunks', 0) + 1}")
+                self.respond("550 Chunk out of order")
                 return
             
             self.session_state["received_chunks"] += 1
@@ -103,12 +122,13 @@ class RouterFTPHandler(FTPHandler):
             final_path = os.path.join(self.server.manager.disk_path, self.session_state["folder_name"], original_filename)
             os.rename(self.session_state["temp_file_path"], final_path)
             logger.info(f"Stored {original_filename} in folder {self.session_state['folder_name']} for {target_node}")
+            self.respond(f"226 Transfer complete: {original_filename} stored for {target_node}")
             
             self.server.manager.check_node_and_forward(self.session_state["folder_name"], target_node, final_path, original_filename)
             
             # Reset state
             self.session_state = {k: None for k in self.session_state}
-            self.session_state["expected_chunks"] = 5
+            self.session_state["expected_chunks"] = None
 
         try:
             os.remove(file_path)

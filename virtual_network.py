@@ -17,20 +17,20 @@ class VirtualNetwork:
         self.manager = manager
         self.ip_map = IP_MAP
         self.ftp_servers = {}
-        self.num_chunks = 5
-        self.bandwidth_bytes_per_sec = 125_000_000  # 1 Gb/s = 1,000,000,000 bits/s = 125,000,000 bytes/s
+        self.bandwidth_bytes_per_sec = 62_500_000  # 1 Gb/s = 1,000,000,000 bits/s = 125,000,000 bytes/s
         self.header_size = 32
         self.server_ip = SERVER_IP
         self.server_port = SERVER_SOCKET_PORT
         self.server_ftp_port = SERVER_FTP_PORT
         self.server_disk_path = "./assets/server/"
         self.transfer_semaphore = threading.Semaphore(10)  # Limit to 10 concurrent transfers
+        self.target_chunk_time = 1.0  # Target time per chunk in seconds
 
     def start_ftp_server(self, node, ip_address, ftp_port, disk_path):
         """Start an FTP server for a node."""
         authorizer = DummyAuthorizer()
         authorizer.add_user("user", "password", disk_path, perm="elradfmw")
-        handler = NodeFTPHandler  # Use the node FTPHandler
+        handler = NodeFTPHandler
         handler.authorizer = authorizer
         ftp_server = FTPServer(("0.0.0.0", ftp_port), handler)
         ftp_server.node = node
@@ -64,17 +64,24 @@ class VirtualNetwork:
             counter += 1
         return new_filename
 
-    def _execute_chunked_transfer(self, ftp, source_path, size, target_filename, target_node_name=None):
+    def _calculate_chunk_parameters(self, file_size):
+        """Calculate chunk size and number of chunks based on file size and bandwidth."""
+        chunk_size = int(self.bandwidth_bytes_per_sec * self.target_chunk_time)  # Bytes per chunk
+        num_chunks = max(1, math.ceil(file_size / chunk_size))  # Ensure at least 1 chunk
+        chunk_size = math.ceil(file_size / num_chunks)  # Adjust chunk size for even division
+        return chunk_size, num_chunks
+
+    def _execute_chunked_transfer(self, ftp, source_path, size, target_filename, target_node_name=None, num_chunks=None):
         """Helper to perform the actual chunked FTP transfer, sending each chunk as a new file."""
         start_time = time.time()
         print(f"Transfer of {target_filename} started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}")
 
-        chunk_size = math.ceil(size / self.num_chunks)
+        chunk_size, num_chunks = self._calculate_chunk_parameters(size) if num_chunks is None else (math.ceil(size / num_chunks), num_chunks)
         sent_bytes = 0
         chunk_count = 0
         try:
             with open(source_path, 'rb') as f:
-                while chunk_count < self.num_chunks and sent_bytes < size:
+                while chunk_count < num_chunks and sent_bytes < size:
                     chunk_count += 1
                     remaining_bytes = size - sent_bytes
                     current_chunk_size = min(chunk_size, remaining_bytes)
@@ -82,7 +89,7 @@ class VirtualNetwork:
                     if not chunk:
                         break
 
-                    header_str = f"CHUNK:{chunk_count}:{current_chunk_size}"
+                    header_str = f"CHUNK:{chunk_count}:{current_chunk_size}:{num_chunks}"
                     if target_node_name:
                         header_str += f":{target_node_name}"
                     header_str += "\n"
@@ -90,12 +97,11 @@ class VirtualNetwork:
                     header = header_str.encode().ljust(self.header_size, b'\0')
                     chunk_with_header = header + chunk
 
-                    # Write chunk to a temporary file for FTP transfer
                     temp_file = tempfile.NamedTemporaryFile(delete=False)
                     temp_file_path = temp_file.name
                     try:
                         temp_file.write(chunk_with_header)
-                        temp_file.close()  # Close the file to ensure it's written
+                        temp_file.close()
                         with open(temp_file_path, 'rb') as temp_f:
                             ftp.storbinary(f"STOR {target_filename}", temp_f)
                         sent_bytes += current_chunk_size
@@ -105,38 +111,33 @@ class VirtualNetwork:
                             os.unlink(temp_file_path)
                         except OSError:
                             pass
+        except ftplib.error_perm as e:
+            raise Exception(f"FTP error: {str(e)}")
         except Exception as e:
             raise Exception(f"Error in chunked transfer: {e}")
 
         end_time = time.time()
         print(f"Transfer of {target_filename} completed in {end_time - start_time:.2f} seconds")
 
-    def send_file(self, filename, source_ip, target_ip, virtual_disk, target_node_name=None):
-        """Send a file from source_ip to target_ip."""
+    def send_file(self, filename, source_ip, virtual_disk, target_node_name=None):
+        """Send a file from source_ip to the router."""
         if source_ip not in self.ip_map:
             return f"Error: Source IP {source_ip} not found"
-        if target_ip not in self.ip_map and target_ip != self.server_ip:
-            return f"Error: Target IP {target_ip} not found"
         if filename not in virtual_disk:
             return f"Error: File {filename} not found on {source_ip}"
 
-        # Check if target node is active (if sending to a node, not the router)
-        if target_ip != self.server_ip and self.manager:
-            target_node = next((info["node_name"] for ip, info in self.ip_map.items() if ip == target_ip), None)
-            if target_node and target_node not in self.manager.active_nodes:
-                return f"Error: Target node {target_node} is not active, transfer failed"
-
+        target_ip = self.server_ip
         source_path = os.path.join(self.ip_map[source_ip]["disk_path"], filename)
         size = virtual_disk[filename]
 
         try:
             target_filename = self._get_unique_filename(filename, target_ip)
             ftp = ftplib.FTP()
-            ftp.connect(host="127.0.0.1", port=self.ip_map.get(target_ip, {"ftp_port": self.server_ftp_port})["ftp_port"])
+            ftp.connect(host="127.0.0.1", port=self.server_ftp_port)
             ftp.login(user="user", passwd="password")
             self._execute_chunked_transfer(ftp, source_path, size, target_filename, target_node_name)
             ftp.quit()
-            return f"Sent {filename} ({size} bytes) to {target_ip}"
+            return f"Sent {filename} ({size} bytes) to {target_ip} for forwarding to {target_node_name}"
         except Exception as e:
             return f"Error sending file to {target_ip}: {e}"
 
