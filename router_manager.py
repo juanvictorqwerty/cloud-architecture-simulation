@@ -6,10 +6,10 @@ from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler
 from pyftpdlib.servers import FTPServer
 from virtual_network import VirtualNetwork
-from server_ftp_handler import ServerFTPHandler
+from router_ftp_handler import RouterFTPHandler
 from config import SERVER_IP, SERVER_FTP_PORT, SERVER_SOCKET_PORT, SERVER_DISK_PATH
 
-class FTPServerManager:
+class RouterManager:
     def __init__(self):
         self.ip_address = SERVER_IP
         self.ftp_port = SERVER_FTP_PORT
@@ -26,21 +26,21 @@ class FTPServerManager:
         self._setup_logging()
 
     def _setup_logging(self):
-        """Sets up centralized logging for the server."""
+        """Sets up centralized logging for the router."""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler("server.log"),
+                logging.FileHandler("router.log"),
                 logging.StreamHandler()
             ])
-        self.logger = logging.getLogger("FTPServerManager")
+        self.logger = logging.getLogger("RouterManager")
 
     def start(self):
         """Start the FTP server and socket server."""
         authorizer = DummyAuthorizer()
         authorizer.add_user("user", "password", self.disk_path, perm="elradfmw")
-        handler = ServerFTPHandler  # Use the server handler
+        handler = RouterFTPHandler  # Use the router handler
         handler.authorizer = authorizer
         self.ftp_server = FTPServer(("0.0.0.0", self.ftp_port), handler)
         self.ftp_server.node = None
@@ -99,4 +99,4 @@ class FTPServerManager:
                 self.logger.info(f"Target node {target_node} is active, forwarding file {original_filename}")
                 self.network.forward_file(folder_name, target_node)
             else:
-                self.logger.warning(f"Target node {target_node} is not active, keeping file {original_filename} in pending")
+                self.logger.warning(f"Target node {target_node} is not active, transfer failed for file {original_filename}")

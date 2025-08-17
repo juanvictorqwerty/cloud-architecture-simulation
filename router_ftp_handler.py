@@ -4,7 +4,7 @@ import tempfile
 import shutil
 from pyftpdlib.handlers import FTPHandler
 
-class ServerFTPHandler(FTPHandler):
+class RouterFTPHandler(FTPHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.session_state = {
@@ -30,12 +30,12 @@ class ServerFTPHandler(FTPHandler):
             counter += 1
 
     def on_file_received(self, file_path):
-        """Handle chunk reception for the server."""
+        """Handle chunk reception for the router."""
         logger = self.server.manager.logger
         with open(file_path, 'rb') as f:
             data = f.read()
 
-        # Server expects a 3-part header from a node
+        # Router expects a 3-part header from a node
         header_pattern = re.compile(b"CHUNK:(\d+):(\d+):([^\n]+)\n")
         match = header_pattern.match(data)
         if not match:
