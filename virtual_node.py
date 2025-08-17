@@ -101,12 +101,14 @@ class VirtualNode:
             return f"Error: File {filename} already exists"
         file_path = os.path.join(self.disk_path, filename)
         try:
+            # Convert MB to bytes (1 MB = 1,048,576 bytes)
+            size_bytes = size * 1024 * 1024
             with open(file_path, 'wb') as f:
-                if size > 0:
-                    f.write(b'\0' * size)
-            self.virtual_disk[filename] = size
+                if size_bytes > 0:
+                    f.write(b'\0' * size_bytes)
+            self.virtual_disk[filename] = size_bytes
             self._save_disk()
-            return f"Created {filename} with size {size} bytes"
+            return f"Created {filename} with size {size} MB"
         except Exception as e:
             return f"Error creating file {filename}: {e}"
 
@@ -115,11 +117,13 @@ class VirtualNode:
             return f"Error: File {filename} not found"
         file_path = os.path.join(self.disk_path, filename)
         try:
+            # Convert MB to bytes (1 MB = 1,048,576 bytes)
+            size_bytes = size * 1024 * 1024
             with open(file_path, 'wb') as f:
-                f.write(b'\0' * size)
-            self.virtual_disk[filename] = size
+                f.write(b'\0' * size_bytes)
+            self.virtual_disk[filename] = size_bytes
             self._save_disk()
-            return f"Truncated {filename} to {size} bytes"
+            return f"Truncated {filename} to {size} MB"
         except Exception as e:
             return f"Error truncating file {filename}: {e}"
 

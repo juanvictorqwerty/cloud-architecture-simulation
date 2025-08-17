@@ -17,14 +17,16 @@ class VirtualNetwork:
         self.manager = manager
         self.ip_map = IP_MAP
         self.ftp_servers = {}
-        self.bandwidth_bytes_per_sec = 62_500_000  # 1 Gb/s = 1,000,000,000 bits/s = 125,000,000 bytes/s
+        self.bandwidth_bytes_per_sec = 125_000_000  # 1 Gb/s = 1,000,000,000 bits/s = 125,000,000 bytes/s
         self.header_size = 32
         self.server_ip = SERVER_IP
         self.server_port = SERVER_SOCKET_PORT
         self.server_ftp_port = SERVER_FTP_PORT
         self.server_disk_path = "./assets/server/"
         self.transfer_semaphore = threading.Semaphore(10)  # Limit to 10 concurrent transfers
-        self.target_chunk_time = 1.0  # Target time per chunk in seconds
+        self.target_chunk_time = 0.1  # Reduced from 1.0 to 0.1 seconds for faster transfers
+        self.min_chunk_size = 1024 * 64  # Minimum 64KB chunks
+        self.max_chunk_size = 10*1024 * 1024  # Maximum 10MB chunks
 
     def start_ftp_server(self, node, ip_address, ftp_port, disk_path):
         """Start an FTP server for a node."""
@@ -65,10 +67,21 @@ class VirtualNetwork:
         return new_filename
 
     def _calculate_chunk_parameters(self, file_size):
-        """Calculate chunk size and number of chunks based on file size and bandwidth."""
-        chunk_size = int(self.bandwidth_bytes_per_sec * self.target_chunk_time)  # Bytes per chunk
-        num_chunks = max(1, math.ceil(file_size / chunk_size))  # Ensure at least 1 chunk
-        chunk_size = math.ceil(file_size / num_chunks)  # Adjust chunk size for even division
+        """Calculate optimized chunk size and number of chunks."""
+        # Calculate ideal chunk size based on bandwidth and target time
+        ideal_chunk_size = int(self.bandwidth_bytes_per_sec * self.target_chunk_time)
+        
+        # Apply min/max bounds
+        chunk_size = max(self.min_chunk_size, min(ideal_chunk_size, self.max_chunk_size))
+        
+        # For small files, use file size as chunk size to avoid excessive chunks
+        if file_size <= self.min_chunk_size:
+            chunk_size = file_size
+            num_chunks = 1
+        else:
+            num_chunks = max(1, math.ceil(file_size / chunk_size))
+            chunk_size = math.ceil(file_size / num_chunks)  # Even division
+        
         return chunk_size, num_chunks
 
     def _execute_chunked_transfer(self, ftp, source_path, size, target_filename, target_node_name=None, num_chunks=None):
