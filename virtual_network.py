@@ -24,9 +24,9 @@ class VirtualNetwork:
         self.server_ftp_port = SERVER_FTP_PORT
         self.server_disk_path = "./assets/server/"
         self.transfer_semaphore = threading.Semaphore(10)  # Limit to 10 concurrent transfers
-        self.target_chunk_time = 0.1  # Reduced from 1.0 to 0.1 seconds for faster transfers
+        self.target_chunk_time = 0.1  # Target chunk time in seconds
         self.min_chunk_size = 1024 * 64  # Minimum 64KB chunks
-        self.max_chunk_size = 10*1024 * 1024  # Maximum 10MB chunks
+        self.max_chunk_size = 10 * 1024 * 1024  # Maximum 10MB chunks
 
     def start_ftp_server(self, node, ip_address, ftp_port, disk_path):
         """Start an FTP server for a node."""
@@ -67,24 +67,14 @@ class VirtualNetwork:
         return new_filename
 
     def _calculate_chunk_parameters(self, file_size):
-        """Calculate optimized chunk size and number of chunks."""
-        # Calculate ideal chunk size based on bandwidth and target time
-        ideal_chunk_size = int(self.bandwidth_bytes_per_sec * self.target_chunk_time)
-        
-        # Apply min/max bounds
-        chunk_size = max(self.min_chunk_size, min(ideal_chunk_size, self.max_chunk_size))
-        
-        # For small files, use file size as chunk size to avoid excessive chunks
-        if file_size <= self.min_chunk_size:
-            chunk_size = file_size
-            num_chunks = 1
-        else:
-            num_chunks = max(1, math.ceil(file_size / chunk_size))
-            chunk_size = math.ceil(file_size / num_chunks)  # Even division
-        
+        """Calculate chunk size and number of chunks based on file size and bandwidth."""
+        chunk_size = int(self.bandwidth_bytes_per_sec * self.target_chunk_time)
+        chunk_size = max(self.min_chunk_size, min(self.max_chunk_size, chunk_size))
+        num_chunks = max(1, math.ceil(file_size / chunk_size))
+        chunk_size = math.ceil(file_size / num_chunks)
         return chunk_size, num_chunks
 
-    def _execute_chunked_transfer(self, ftp, source_path, size, target_filename, target_node_name=None, num_chunks=None):
+    def _execute_chunked_transfer(self, ftp, source_path, size, target_filename, sender_node_name=None, target_node_name=None, num_chunks=None):
         """Helper to perform the actual chunked FTP transfer, sending each chunk as a new file."""
         start_time = time.time()
         print(f"Transfer of {target_filename} started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}")
@@ -103,6 +93,8 @@ class VirtualNetwork:
                         break
 
                     header_str = f"CHUNK:{chunk_count}:{current_chunk_size}:{num_chunks}"
+                    if sender_node_name:
+                        header_str += f":{sender_node_name}"
                     if target_node_name:
                         header_str += f":{target_node_name}"
                     header_str += "\n"
@@ -139,6 +131,7 @@ class VirtualNetwork:
         if filename not in virtual_disk:
             return f"Error: File {filename} not found on {source_ip}"
 
+        sender_node_name = self.ip_map[source_ip]["node_name"]
         target_ip = self.server_ip
         source_path = os.path.join(self.ip_map[source_ip]["disk_path"], filename)
         size = virtual_disk[filename]
@@ -148,7 +141,7 @@ class VirtualNetwork:
             ftp = ftplib.FTP()
             ftp.connect(host="127.0.0.1", port=self.server_ftp_port)
             ftp.login(user="user", passwd="password")
-            self._execute_chunked_transfer(ftp, source_path, size, target_filename, target_node_name)
+            self._execute_chunked_transfer(ftp, source_path, size, target_filename, sender_node_name, target_node_name)
             ftp.quit()
             return f"Sent {filename} ({size} bytes) to {target_ip} for forwarding to {target_node_name}"
         except Exception as e:
