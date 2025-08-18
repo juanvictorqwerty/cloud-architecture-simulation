@@ -164,6 +164,50 @@ class VirtualNode:
             return f"{var_name} = {self.memory[var_name]}"
         return f"Error: Variable {var_name} not found in memory"
 
+    def _is_cloud_node(self, name):
+        return name.startswith("cloud")
+
+    def _in_same_link(self, target):
+        """Check if `self.name` and `target` appear in the same link."""
+        import links_manager  # local import
+        lm = links_manager.LinksManager()
+        for members in lm.links.values():
+            if self.name in members and target in members:
+                return True
+        return False
+
+    def get(self, filename, source_node_name):
+        """
+        Simulate a download:
+        - If source is a cloud node we allow it regardless of links.
+        - Otherwise the two nodes must share a link.
+        """
+        if not self.is_running:
+            return f"Error: VM {self.name} is not running"
+
+        if source_node_name == self.name:
+            return "Error: Cannot get a file from yourself"
+
+        # Does the source node exist?
+        src_ip = None
+        for ip, info in self.ip_map.items():
+            if info["node_name"] == source_node_name:
+                src_ip = ip
+                break
+        if not src_ip:
+            return f"Error: Source node {source_node_name} does not exist"
+
+        # Cloud nodes bypass link checks
+        if not self._is_cloud_node(source_node_name) and not self._in_same_link(source_node_name):
+            return f"Error: Node {self.name} and {source_node_name} are not in the same link"
+
+        # Pull from source
+        try:
+            result = self.network.send_file(filename, src_ip, self.network.ip_map[src_ip]["disk_path"], self.name)
+            return result.replace("sent", "downloaded")
+        except Exception as e:
+            return f"Error downloading {filename}: {e}"
+
     def execute_instruction(self, instruction):
         if not self.is_running:
             return f"Error: VM {self.name} is not running"
@@ -214,6 +258,8 @@ class VirtualNode:
                     print(self.get_var(command[1]))
                 elif cmd == "add" and len(command) == 3:
                     print(self.execute_instruction(" ".join(command)))
+                elif cmd == "get" and len(command) == 3:
+                    print(self.get(command[1], command[2]))
                 elif cmd == "stop":
                     print(self.stop())
                     break

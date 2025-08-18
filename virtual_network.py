@@ -49,23 +49,32 @@ class VirtualNetwork:
             del self.ftp_servers[ip_address]
 
     def _get_unique_filename(self, filename, target_ip):
-        """Generate a unique filename for the target node."""
-        try:
-            ftp = ftplib.FTP()
-            ftp.connect(host="127.0.0.1", port=self.ip_map.get(target_ip, {"ftp_port": self.server_ftp_port})["ftp_port"])
-            ftp.login(user="user", passwd="password")
-            file_list = ftp.nlst()
-            ftp.quit()
-        except Exception:
-            file_list = []
-        base, ext = os.path.splitext(filename)
-        counter = 1
-        new_filename = filename
-        while new_filename in file_list:
-            new_filename = f"{base}_{counter}{ext}"
-            counter += 1
-        return new_filename
-
+        """
+        Return the original filename unless the destination already has it.
+        For cloud nodes we do NOT want duplicates, so we still uniquify.
+            """
+        info = self.ip_map.get(target_ip)
+        if info and info["node_name"].startswith("cloud"):
+            # same old logic for cloud
+            try:
+                ftp = ftplib.FTP()
+                ftp.connect(host="127.0.0.1", port=info["ftp_port"])
+                ftp.login(user="user", passwd="password")
+                file_list = ftp.nlst()
+                ftp.quit()
+            except Exception:
+                file_list = []
+                base, ext = os.path.splitext(filename)
+                counter = 1
+                new_filename = filename
+                while new_filename in file_list:
+                        new_filename = f"{base}_{counter}{ext}"
+                        counter += 1
+                return new_filename
+        else:
+                # regular node – keep original
+                return filename
+            
     def _calculate_chunk_parameters(self, file_size):
         """Calculate optimized chunk size and number of chunks."""
         ideal_chunk_size = int(self.bandwidth_bytes_per_sec * self.target_chunk_time)

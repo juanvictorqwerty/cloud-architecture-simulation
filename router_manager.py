@@ -1,4 +1,3 @@
-import os
 import threading
 import socket
 import logging
@@ -92,39 +91,21 @@ class RouterManager:
         except Exception as e:
             self.logger.error(f"Error processing socket message: {e}", exc_info=True)
             client_socket.close()
-
+    
     def check_node_and_forward(self, folder_name, target_node, file_path, original_filename, sender_node):
-        """Check if the target node and cloud nodes are available and forward the file."""
-        cloud_node_ips = ["192.168.1.6", "192.168.1.7", "192.168.1.8"]
-        cloud_nodes = []
-        for ip in cloud_node_ips:
-            for node_ip, info in self.network.ip_map.items():
-                if node_ip == ip:
-                    cloud_nodes.append(info["node_name"])
-                    break
-            else:
-                self.logger.warning(f"Cloud node with IP {ip} not found in IP_MAP")
-                continue
-
-        with self.active_nodes_lock:
-            # Forward to the original target node if specified and active
-            if target_node and target_node in self.active_nodes:
-                self.logger.info(f"Target node {target_node} is active, forwarding file {original_filename}")
-                self.network.forward_file(folder_name, target_node)
-            elif target_node:
-                self.logger.warning(f"Target node {target_node} is not active, queuing file {original_filename}")
-
-            # Forward to all active cloud nodes
-            for cloud_node in cloud_nodes:
-                if cloud_node in self.active_nodes:
-                    self.logger.info(f"Cloud node {cloud_node} is active, forwarding file {original_filename} from {sender_node}")
-                    cloud_folder_name = f"{folder_name}_cloud_{cloud_node}"
-                    cloud_file_path = os.path.join(self.disk_path, cloud_folder_name, original_filename)
-                    os.makedirs(os.path.dirname(cloud_file_path), exist_ok=True)
-                    import shutil
-                    shutil.copy2(file_path, cloud_file_path)
-                    with self.pending_files_lock:
-                        self.pending_files[cloud_folder_name] = (cloud_node, original_filename, sender_node)
-                    self.network.forward_file(cloud_folder_name, cloud_node)
+            """Forward the file to the requested node *and* replicate to every cloud node."""
+            from virtual_network import VirtualNetwork  # local import to avoid circularity
+    
+            # 1) Forward to the originally requested node (if on-line)
+            with self.active_nodes_lock:
+                if target_node in self.active_nodes:
+                    self.logger.info(f"Target node {target_node} is active, forwarding {original_filename}")
+                    self.network.forward_file(folder_name, target_node)
                 else:
-                    self.logger.warning(f"Cloud node {cloud_node} is not active, skipping file {original_filename}")
+                    self.logger.warning(f"Target node {target_node} not active, transfer failed for {original_filename}")
+    
+            # 2) Replicate to every cloud node
+            for ip, info in self.network.ip_map.items():
+                if info["node_name"].startswith("cloud") and info["node_name"] in self.active_nodes and info["node_name"] != target_node:
+                    self.logger.info(f"Replicating {original_filename} to {info['node_name']}")
+                    self.network.forward_file(folder_name, info["node_name"], is_replication=True)

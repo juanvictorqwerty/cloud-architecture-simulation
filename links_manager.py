@@ -1,15 +1,13 @@
 import json
 import os
-from config import SERVER_DISK_PATH, IP_MAP
+from config import SERVER_DISK_PATH, IP_MAP, CLOUD_NODES
 
 class LinksManager:
     def __init__(self):
         self.links_file = os.path.join(SERVER_DISK_PATH, "links.json")
         self.links = {}
         self._load_links()
-        # Define cloud nodes by their IP addresses
-        self.cloud_node_ips = ["192.168.1.6", "192.168.1.7", "192.168.1.8"]
-        self.cloud_node_names = [info["node_name"] for ip, info in IP_MAP.items() if ip in self.cloud_node_ips]
+        self.cloud_node_names = CLOUD_NODES # Use the imported CLOUD_NODES set
 
     def _load_links(self):
         """Load links from links.json, if it exists."""
@@ -31,15 +29,20 @@ class LinksManager:
         except IOError as e:
             print(f"Error saving links to {self.links_file}: {e}")
 
+        
+
     def licreate(self, link_name, nodes):
-        """Create a link with the given name and nodes."""
         if len(nodes) < 2:
             return f"Error: Link {link_name} requires at least two nodes"
         if link_name in self.links:
             return f"Error: Link {link_name} already exists"
+
         for node in nodes:
+            if node in self.cloud_node_names: # Use the correct attribute
+                return f"Error: Cloud node {node} cannot join links"
             if not any(info["node_name"] == node for info in IP_MAP.values()):
                 return f"Error: Node {node} does not exist"
+
         self.links[link_name] = nodes
         self._save_links()
         return f"Created link {link_name} with nodes {', '.join(nodes)}"
