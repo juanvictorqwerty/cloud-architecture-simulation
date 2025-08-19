@@ -4,6 +4,7 @@ import socket
 from virtual_network import VirtualNetwork
 import threading
 from config import IP_MAP, SERVER_IP, SERVER_SOCKET_PORT
+import file_store
 
 class VirtualNode:
     def __init__(self, name, disk_path, ip_address, ftp_port):
@@ -69,7 +70,50 @@ class VirtualNode:
         thread.start()
         thread.join()  # Wait for the thread to complete to get the result
         return result[0] if result[0] else f"Attempting to send {filename} to {target_node_name} in the background."
+        # ----------  UPLOAD ----------
+    def upload(self, filename):
+        if not self.is_running:
+            return f"Error: VM {self.name} is not running"
+        if filename not in self.virtual_disk:
+            return f"Error: File {filename} not found locally"
 
+        from file_store import store
+        store(filename, self.virtual_disk[filename], self.name)
+        return f"Uploaded {filename} (size={self.virtual_disk[filename]} B) from {self.name} → cloud storage"
+
+    # ----------  DOWNLOAD ----------
+    def download(self, filename):
+        if not self.is_running:
+            return f"Error: VM {self.name} is not running"
+
+        from file_store import fetch, in_same_link
+        meta = fetch(filename)
+        if not meta:
+            return f"Error: {filename} not available in cloud"
+
+        sender = meta["sender"]
+        size = meta["size"]
+
+        if not in_same_link(self.name, sender):
+            return f"Error: {self.name} and {sender} are not in the same link – download denied"
+
+        # create a local file with identical size (zero-filled)
+        file_path = os.path.join(self.disk_path, filename)
+        try:
+            with open(file_path, "wb") as f:
+                f.write(b"\0" * size)
+            self.virtual_disk[filename] = size
+            self._save_disk()
+        except Exception as e:
+            return f"Error creating file: {e}"
+
+        # fancy fake progress
+        import time, random
+        for i in range(1, 6):
+            print(f"[{self.name}] Downloading {filename} ... {i*20}%")
+            time.sleep(random.uniform(0.2, 0.6))
+        print(f"[{self.name}] Download of {filename} ({size} B) completed")
+        return f"Downloaded {filename} successfully"
     def start(self):
         if self.is_running:
             return f"VM {self.name} is already running"
@@ -260,11 +304,15 @@ class VirtualNode:
                     print(self.execute_instruction(" ".join(command)))
                 elif cmd == "get" and len(command) == 3:
                     print(self.get(command[1], command[2]))
+                elif cmd == "upload" and len(command) == 2:
+                    print(self.upload(command[1]))
+                elif cmd == "download" and len(command) == 2:
+                    print(self.download(command[1]))
                 elif cmd == "stop":
                     print(self.stop())
                     break
                 else:
-                    print("Invalid command. Use: ls, touch <filename> [size], trunc <filename> [size], send <filename> <node_name>, del <filename|all>, diskprop, stop")
+                    print("Invalid command. Use: Valid commands: ls, touch <file> [size], trunc <file> [size],send <file> <node>, upload <file>, download <file>, del <file|all>, diskprop, stop")
             except EOFError:
                 print("\nEOF detected. Stopping VM.")
                 print(self.stop())
