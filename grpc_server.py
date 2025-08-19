@@ -27,7 +27,7 @@ class FileTransferServicer(file_transfer_pb2_grpc.FileTransferServiceServicer):
     def StartTransfer(self, request, context):
         """Start a new file transfer session"""
         transfer_id = str(uuid.uuid4())
-        
+
         with self.transfer_lock:
             self.active_transfers[transfer_id] = {
                 'filename': request.filename,
@@ -39,7 +39,11 @@ class FileTransferServicer(file_transfer_pb2_grpc.FileTransferServiceServicer):
                 'temp_file': None,
                 'chunks_data': {}
             }
-        
+
+        # Log transfer start for router
+        if self.router_manager:
+            print(f"{request.filename}: starting")
+
         return file_transfer_pb2.TransferResponse(
             success=True,
             message=f"Transfer session started for {request.filename}",
@@ -49,19 +53,24 @@ class FileTransferServicer(file_transfer_pb2_grpc.FileTransferServiceServicer):
     def TransferChunk(self, request, context):
         """Receive a file chunk"""
         transfer_id = request.transfer_id
-        
+
         with self.transfer_lock:
             if transfer_id not in self.active_transfers:
                 return file_transfer_pb2.TransferResponse(
                     success=False,
                     message=f"Transfer session {transfer_id} not found"
                 )
-            
+
             transfer_info = self.active_transfers[transfer_id]
             transfer_info['chunks_data'][request.chunk_number] = request.data
             transfer_info['chunks_received'] += 1
             transfer_info['total_chunks'] = request.total_chunks
-            
+
+            # Log chunk progress for router
+            if self.router_manager:
+                # Show progress on console for router
+                print(f"{request.filename}: {request.chunk_number}/{request.total_chunks}")
+
             # Check if all chunks received
             if transfer_info['chunks_received'] == request.total_chunks:
                 # Reconstruct file
@@ -71,9 +80,13 @@ class FileTransferServicer(file_transfer_pb2_grpc.FileTransferServiceServicer):
                         for i in range(1, request.total_chunks + 1):
                             if i in transfer_info['chunks_data']:
                                 f.write(transfer_info['chunks_data'][i])
-                    
+
                     # Update virtual disk metadata
                     self._update_virtual_disk(request.filename, os.path.getsize(file_path))
+
+                    # Log completion for router
+                    if self.router_manager:
+                        print(f"{request.filename}: complete")
 
                     # If this is a router and the file is for another node, forward it
                     if (self.router_manager and
@@ -87,6 +100,8 @@ class FileTransferServicer(file_transfer_pb2_grpc.FileTransferServiceServicer):
                         transfer_id=transfer_id
                     )
                 except Exception as e:
+                    if self.router_manager:
+                        self.router_manager.logger.error(f"Error reconstructing {request.filename}: {str(e)}")
                     return file_transfer_pb2.TransferResponse(
                         success=False,
                         message=f"Error writing file: {str(e)}",
@@ -196,11 +211,13 @@ class FileTransferServicer(file_transfer_pb2_grpc.FileTransferServiceServicer):
             # Check if target node is active
             with self.router_manager.active_nodes_lock:
                 if target_node not in self.router_manager.active_nodes:
-                    print(f"Target node {target_node} is not active")
+                    self.router_manager.logger.warning(f"Target node {target_node} is not active, cannot forward {filename}")
                     return
 
             # Forward file to target node
             file_path = os.path.join(self.disk_path, filename)
+            print(f"{filename}: forwarding to {target_node}")
+
             client = GRPCClient()
             result = client.send_file(
                 file_path=file_path,
@@ -209,10 +226,9 @@ class FileTransferServicer(file_transfer_pb2_grpc.FileTransferServiceServicer):
                 sender_node=sender_node,
                 port=target_port
             )
-            print(f"Forwarded {filename} from {sender_node} to {target_node}: {result}")
 
         except Exception as e:
-            print(f"Error forwarding file to {target_node}: {e}")
+            self.router_manager.logger.error(f"Error forwarding file {filename} to {target_node}: {e}")
 
 
 class NodeManagementServicer(file_transfer_pb2_grpc.NodeManagementServiceServicer):
@@ -230,11 +246,12 @@ class NodeManagementServicer(file_transfer_pb2_grpc.NodeManagementServiceService
         if self.router_manager:
             with self.router_manager.active_nodes_lock:
                 self.router_manager.active_nodes.add(request.node_name)
-            print(f"Node {request.node_name} registered with router (gRPC)")
+            # Log to router (detailed)
+            self.router_manager.logger.info(f"Node {request.node_name} registered via gRPC from {request.ip_address}:{request.port}")
 
         return file_transfer_pb2.NodeResponse(
             success=True,
-            message=f"Node {request.node_name} registered successfully"
+            message=f"Registered"
         )
 
     def UnregisterNode(self, request, context):
@@ -246,11 +263,12 @@ class NodeManagementServicer(file_transfer_pb2_grpc.NodeManagementServiceService
         if self.router_manager:
             with self.router_manager.active_nodes_lock:
                 self.router_manager.active_nodes.discard(request.node_name)
-            print(f"Node {request.node_name} unregistered from router (gRPC)")
+            # Log to router (detailed)
+            self.router_manager.logger.info(f"Node {request.node_name} unregistered via gRPC")
 
         return file_transfer_pb2.NodeResponse(
             success=True,
-            message=f"Node {request.node_name} unregistered successfully"
+            message=f"Unregistered"
         )
 
     def GetActiveNodes(self, request, context):
@@ -306,10 +324,8 @@ class GRPCServer:
 
             # Add node management service (full service for router, minimal for nodes)
             if self.is_router:
-                print(f"Adding full NodeManagementService for router {self.node_name}")
                 node_mgmt_servicer = NodeManagementServicer(self.router_manager)
             else:
-                print(f"Adding minimal NodeManagementService for node {self.node_name}")
                 node_mgmt_servicer = NodeManagementServicer(None)  # No router manager for regular nodes
 
             file_transfer_pb2_grpc.add_NodeManagementServiceServicer_to_server(
@@ -322,22 +338,20 @@ class GRPCServer:
 
             for listen_addr in bind_addresses:
                 try:
-                    print(f"Attempting to bind gRPC server for {self.node_name} to {listen_addr}")
                     port_result = self.server.add_insecure_port(listen_addr)
                     if port_result != 0:
-                        print(f"Successfully bound to {listen_addr}")
                         break
-                    else:
-                        print(f"Failed to bind to {listen_addr}")
-                except Exception as e:
-                    print(f"Exception binding to {listen_addr}: {e}")
+                except Exception:
+                    continue
 
             if port_result == 0:
-                print(f"Failed to bind to any address for port {self.port}")
                 return None
 
             self.server.start()
-            print(f"gRPC server started for {self.node_name} on port {self.port}")
+
+            # Only log for router, stay silent for nodes
+            if self.is_router:
+                print(f"gRPC server started for {self.node_name} on port {self.port}")
 
             return self.server
         except Exception as e:

@@ -17,7 +17,7 @@ class VirtualNetwork:
         self.transfer_semaphore = threading.Semaphore(10)
         self.target_chunk_time = 0.1
         self.min_chunk_size = 1024 * 64
-        self.max_chunk_size = 1024 * 1024
+        self.max_chunk_size = 5 * 1024 * 1024
 
     # All FTP methods removed - using gRPC only
 

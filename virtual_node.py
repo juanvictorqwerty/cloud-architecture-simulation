@@ -135,19 +135,16 @@ class VirtualNode:
 
                 if "Error" not in result:
                     successful_uploads.append(target_cloud)
-                    print(f"✓ Successfully uploaded {filename} to {target_cloud}")
                 else:
                     failed_uploads.append(target_cloud)
-                    print(f"✗ Failed to upload {filename} to {target_cloud}: {result}")
 
-            except Exception as e:
+            except Exception:
                 failed_uploads.append(target_cloud)
-                print(f"✗ Exception uploading to {target_cloud}: {e}")
 
         if successful_uploads:
-            return f"File {filename} uploaded to {len(successful_uploads)}/3 cloud nodes: {', '.join(successful_uploads)}"
+            return f"✓ Uploaded to {len(successful_uploads)}/3 clouds"
         else:
-            return "Error: Failed to upload file to any cloud node."
+            return "✗ Upload failed"
 
     # ----------  DOWNLOAD ----------
     def download(self, filename):
@@ -177,9 +174,7 @@ class VirtualNode:
         # First check if file exists on the cloud node
         file_info = self.grpc_client.get_file_info(filename, owner_grpc_port)
         if not file_info or not file_info['exists']:
-            return f"Error: {filename} not found on {owner}"
-
-        print(f"Requesting download of {filename} from {owner}...")
+            return f"✗ {filename} not found"
 
         # Request the cloud node to send the file to us via the router using gRPC
         try:
@@ -201,14 +196,14 @@ class VirtualNode:
                     file_size = os.path.getsize(local_file_path)
                     self.virtual_disk[filename] = file_size
                     self._save_disk()
-                    return f"Downloaded {filename} from {owner} ({file_size} bytes)"
+                    return f"✓ Downloaded {filename}"
                 else:
-                    return f"Transfer initiated but file not yet received. Try 'ls' in a moment."
+                    return f"⏳ Transfer in progress"
             else:
-                return f"Error downloading {filename}: {result}"
+                return f"✗ Download failed"
 
-        except Exception as e:
-            return f"Error downloading {filename}: {e}"
+        except Exception:
+            return f"✗ Download failed"
 
     # ----------  helper ----------
     @staticmethod
@@ -229,30 +224,25 @@ class VirtualNode:
             return f"VM {self.name} is already running"
         self.is_running = True
 
-        # Register with router via gRPC
+        # Register with router via gRPC (silently)
         try:
-            success = self.grpc_client.register_node(
+            self.grpc_client.register_node(
                 node_name=self.name,
                 ip_address=self.ip_address,
                 port=self.grpc_port,
                 router_port=SERVER_GRPC_PORT
             )
-            if success:
-                print(f"VM {self.name} registered with router via gRPC")
-            else:
-                print(f"Failed to register {self.name} with router via gRPC")
-        except Exception as e:
-            print(f"gRPC registration failed: {e}")
+        except Exception:
+            pass  # Silent registration
 
-        print(f"VM {self.name} started")
-        return f"VM {self.name} started"
+        return f"✓ {self.name} started"
 
     def stop(self):
         if not self.is_running:
-            return f"VM {self.name} is already stopped"
+            return f"{self.name} already stopped"
         self.is_running = False
 
-        # Unregister from router via gRPC
+        # Unregister from router via gRPC (silently)
         try:
             self.grpc_client.unregister_node(
                 node_name=self.name,
@@ -260,15 +250,14 @@ class VirtualNode:
                 port=self.grpc_port,
                 router_port=SERVER_GRPC_PORT
             )
-        except Exception as e:
-            print(f"Error unregistering from router: {e}")
+        except Exception:
+            pass  # Silent unregistration
 
         # Stop gRPC server
         if self.grpc_server:
             self.grpc_server.stop()
 
-        print(f"VM {self.name} stopped")
-        return f"VM {self.name} stopped"
+        return f"✓ {self.name} stopped"
 
     def _refresh_disk(self):
         # Clear existing virtual disk entries, but keep metadata if it exists

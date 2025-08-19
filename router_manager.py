@@ -41,9 +41,11 @@ class RouterManager:
         def start_grpc():
             result = self.grpc_server.start()
             if result is not None:
-                print(f"gRPC server successfully started on {self.ip_address}:{self.grpc_port}")
+                self.logger.info(f"gRPC server successfully started on {self.ip_address}:{self.grpc_port}")
+                print(f"✓ Router gRPC server started on port {self.grpc_port}")
             else:
-                print(f"gRPC server failed to start on {self.ip_address}:{self.grpc_port}")
+                self.logger.error(f"gRPC server failed to start on {self.ip_address}:{self.grpc_port}")
+                print(f"✗ Router gRPC server failed to start")
 
         grpc_thread = threading.Thread(target=start_grpc, daemon=True)
         grpc_thread.start()
@@ -55,7 +57,8 @@ class RouterManager:
         self.socket_server.listen(10)
         socket_thread = threading.Thread(target=self._handle_socket_connections, daemon=True)
         socket_thread.start()
-        print(f"Socket server started on {self.ip_address}:{self.socket_port}")
+        self.logger.info(f"Socket server started on {self.ip_address}:{self.socket_port}")
+        print(f"✓ Router socket server started on port {self.socket_port}")
 
     def stop(self):
         """Stop the gRPC server and socket server."""

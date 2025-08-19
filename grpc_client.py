@@ -23,7 +23,7 @@ class GRPCClient:
         self.bandwidth_bytes_per_sec = 125_000_000
         self.target_chunk_time = 0.1
         self.min_chunk_size = 1024 * 64
-        self.max_chunk_size = 1024 * 1024  # 1MB max chunk size to stay under gRPC limits
+        self.max_chunk_size = 5 * 1024 * 1024  # 5MB max chunk size
     
     def connect(self, port: int):
         """Connect to a gRPC server"""
@@ -38,17 +38,15 @@ class GRPCClient:
         ]
 
         target = f'{self.target_host}:{port}'
-        print(f"Attempting to connect to gRPC server at {target}")
         self.channel = grpc.insecure_channel(target, options=options)
         self.file_transfer_stub = file_transfer_pb2_grpc.FileTransferServiceStub(self.channel)
         self.node_mgmt_stub = file_transfer_pb2_grpc.NodeManagementServiceStub(self.channel)
 
-        # Test connection - try HealthCheck first (for routers), then ListFiles (for nodes)
+        # Test connection silently - try HealthCheck first (for routers), then ListFiles (for nodes)
         try:
             # Try HealthCheck first (works for routers)
             request = file_transfer_pb2.Empty()
             response = self.node_mgmt_stub.HealthCheck(request, timeout=5)
-            print(f"Successfully connected to gRPC server (router) at {target}")
             return True
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.UNIMPLEMENTED:
@@ -56,16 +54,12 @@ class GRPCClient:
                 try:
                     request = file_transfer_pb2.ListFilesRequest(path="")
                     response = self.file_transfer_stub.ListFiles(request, timeout=5)
-                    print(f"Successfully connected to gRPC server (node) at {target}")
                     return True
-                except grpc.RpcError as e2:
-                    print(f"Failed to connect to gRPC server at {target}: {e2}")
+                except grpc.RpcError:
                     return False
             else:
-                print(f"Failed to connect to gRPC server at {target}: {e}")
                 return False
-        except Exception as e:
-            print(f"Unexpected error connecting to gRPC server at {target}: {e}")
+        except Exception:
             return False
     
     def disconnect(self):
@@ -118,16 +112,14 @@ class GRPCClient:
             
             # Calculate chunk parameters
             chunk_size, num_chunks = self._calculate_chunk_parameters(file_size)
-            
-            print(f"Transfer of {filename} started at {time.strftime('%Y-%m-%d %H:%M:%S')}")
-            
-            # Send file in chunks
+
+            # Send file in chunks (silently)
             with open(file_path, 'rb') as f:
                 for chunk_num in range(1, num_chunks + 1):
                     chunk_data = f.read(chunk_size)
                     if not chunk_data:
                         break
-                    
+
                     chunk_request = file_transfer_pb2.FileChunk(
                         transfer_id=transfer_id,
                         chunk_number=chunk_num,
@@ -137,31 +129,29 @@ class GRPCClient:
                         target_node=target_node,
                         sender_node=sender_node
                     )
-                    
+
                     chunk_response = self.file_transfer_stub.TransferChunk(chunk_request)
                     if not chunk_response.success:
-                        return f"Error sending chunk {chunk_num}: {chunk_response.message}"
-                    
+                        return f"Transfer failed"
+
                     # Simulate bandwidth limitation
                     time.sleep(len(chunk_data) / self.bandwidth_bytes_per_sec)
-            
+
             # Complete transfer
             complete_request = file_transfer_pb2.CompleteTransferRequest(
                 transfer_id=transfer_id,
                 filename=filename,
                 target_node=target_node
             )
-            
-            complete_response = self.file_transfer_stub.CompleteTransfer(complete_request)
-            
-            print(f"Transfer of {filename} completed")
-            
-            return f"Sent {filename} ({file_size} bytes) to {target_node}"
-            
-        except grpc.RpcError as e:
-            return f"gRPC error: {e.details()}"
-        except Exception as e:
-            return f"Error sending file: {str(e)}"
+
+            self.file_transfer_stub.CompleteTransfer(complete_request)
+
+            return f"✓ {filename} sent to {target_node}"
+
+        except grpc.RpcError:
+            return f"✗ Transfer failed"
+        except Exception:
+            return f"✗ Transfer failed"
         finally:
             self.disconnect()
     
