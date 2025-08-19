@@ -160,7 +160,19 @@ class VirtualNode:
         print(f"VM {self.name} stopped")
         return f"VM {self.name} stopped"
 
+    def _refresh_disk(self):
+        # Clear existing virtual disk entries, but keep metadata if it exists
+        self.virtual_disk = {k: v for k, v in self.virtual_disk.items() if k == "disk_metadata.json"}
+        for filename in os.listdir(self.disk_path):
+            if filename != "disk_metadata.json":
+                file_path = os.path.join(self.disk_path, filename)
+                if os.path.isfile(file_path):
+                    size = os.path.getsize(file_path)
+                    self.virtual_disk[filename] = size
+        self._save_disk()
+
     def ls(self):
+        self._refresh_disk()
         return "\n".join([f"{k} ({v} bytes)" for k, v in self.virtual_disk.items() if k != "disk_metadata.json"])
 
     def touch(self, filename, size=0):
