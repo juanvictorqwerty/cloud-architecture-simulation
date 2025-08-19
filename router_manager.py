@@ -7,6 +7,7 @@ from pyftpdlib.handlers import FTPHandler
 from pyftpdlib.servers import FTPServer
 from virtual_network import VirtualNetwork
 from router_ftp_handler import RouterFTPHandler
+from links_manager import LinksManager
 from config import SERVER_IP, SERVER_FTP_PORT, SERVER_SOCKET_PORT, SERVER_DISK_PATH
 
 class RouterManager:
@@ -15,6 +16,7 @@ class RouterManager:
         self.ftp_port = SERVER_FTP_PORT
         self.disk_path = SERVER_DISK_PATH
         self.network = VirtualNetwork(self)
+        self.links_manager = LinksManager()
         self.pending_files = {}
         self.pending_files_lock = threading.Lock()
         self.ftp_server = None
@@ -40,7 +42,7 @@ class RouterManager:
         """Start the FTP server and socket server."""
         authorizer = DummyAuthorizer()
         authorizer.add_user("user", "password", self.disk_path, perm="elradfmw")
-        handler = RouterFTPHandler  # Use the router handler
+        handler = RouterFTPHandler
         handler.authorizer = authorizer
         self.ftp_server = FTPServer(("0.0.0.0", self.ftp_port), handler)
         self.ftp_server.node = None
@@ -52,7 +54,7 @@ class RouterManager:
         self.socket_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket_server.bind(("0.0.0.0", self.socket_port))
-        self.socket_server.listen(10)  # Increased backlog for more concurrent connections
+        self.socket_server.listen(10)
         socket_thread = threading.Thread(target=self._handle_socket_connections, daemon=True)
         socket_thread.start()
         print(f"Socket server started on {self.ip_address}:{self.socket_port}")
@@ -85,7 +87,7 @@ class RouterManager:
                 node_name = message.get("node_name")
                 self.logger.info(f"Node {node_name} started, checking for pending files")
                 with self.active_nodes_lock:
-                    self.active_nodes.add(node_name)  # Mark node as active
+                    self.active_nodes.add(node_name)
                 self.network.forward_file(None, node_name)
             client_socket.close()
         except Exception as e:
