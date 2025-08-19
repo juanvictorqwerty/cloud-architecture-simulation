@@ -731,3 +731,119 @@ OSError: [WinError 10038] An operation was attempted on something that is not a 
 2025-08-19 07:28:53,475 - RouterManager - INFO - Replicating 5 to cloud3
 2025-08-19 07:28:53,600 - pyftpdlib - INFO - 127.0.0.1:61643-[user] FTP session closed (disconnect).
 2025-08-19 07:29:20,569 - RouterManager - INFO - Node cloud1 started, checking for pending files
+2025-08-19 14:11:55,760 - pyftpdlib - INFO - concurrency model: async
+2025-08-19 14:11:55,761 - pyftpdlib - INFO - masquerade (NAT) address: None
+2025-08-19 14:11:55,762 - pyftpdlib - INFO - passive ports: None
+2025-08-19 14:11:55,763 - pyftpdlib - INFO - >>> starting FTP server on 0.0.0.0:2120, pid=15492 <<<
+2025-08-19 14:17:10,783 - pyftpdlib - INFO - >>> shutting down FTP server, 0 socket(s), pid=15492 <<<
+2025-08-19 14:17:10,783 - RouterManager - INFO - FTP server stopped for 127.0.0.1
+2025-08-19 14:17:10,786 - RouterManager - INFO - gRPC server stopped for 127.0.0.1
+2025-08-19 14:17:10,786 - RouterManager - INFO - Socket server stopped for 127.0.0.1
+2025-08-19 14:17:10,788 - RouterManager - ERROR - Socket server error: [WinError 10038] An operation was attempted on something that is not a socket
+Traceback (most recent call last):
+  File "E:\cloud-architecture-simulation\router_manager.py", line 87, in _handle_socket_connections
+    client_socket, addr = self.socket_server.accept()
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
+    fd, addr = self._accept()
+OSError: [WinError 10038] An operation was attempted on something that is not a socket
+2025-08-19 14:18:00,088 - pyftpdlib - INFO - concurrency model: async
+2025-08-19 14:18:00,088 - pyftpdlib - INFO - masquerade (NAT) address: None
+2025-08-19 14:18:00,089 - pyftpdlib - INFO - passive ports: None
+2025-08-19 14:18:00,090 - pyftpdlib - INFO - >>> starting FTP server on 0.0.0.0:2120, pid=20784 <<<
+2025-08-19 14:25:55,231 - pyftpdlib - INFO - >>> shutting down FTP server, 0 socket(s), pid=20784 <<<
+2025-08-19 14:25:55,231 - RouterManager - INFO - FTP server stopped for 127.0.0.1
+2025-08-19 14:25:55,233 - RouterManager - INFO - gRPC server stopped for 127.0.0.1
+2025-08-19 14:25:55,235 - RouterManager - INFO - Socket server stopped for 127.0.0.1
+2025-08-19 14:25:55,235 - RouterManager - ERROR - Socket server error: [WinError 10038] An operation was attempted on something that is not a socket
+Traceback (most recent call last):
+  File "E:\cloud-architecture-simulation\router_manager.py", line 87, in _handle_socket_connections
+    client_socket, addr = self.socket_server.accept()
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
+    fd, addr = self._accept()
+OSError: [WinError 10038] An operation was attempted on something that is not a socket
+2025-08-19 14:26:55,817 - pyftpdlib - INFO - concurrency model: async
+2025-08-19 14:26:55,817 - pyftpdlib - INFO - masquerade (NAT) address: None
+2025-08-19 14:26:55,817 - pyftpdlib - INFO - passive ports: None
+2025-08-19 14:26:55,818 - pyftpdlib - INFO - >>> starting FTP server on 0.0.0.0:2120, pid=4932 <<<
+2025-08-19 14:31:38,386 - pyftpdlib - INFO - >>> shutting down FTP server, 0 socket(s), pid=4932 <<<
+2025-08-19 14:31:38,386 - RouterManager - INFO - FTP server stopped for 127.0.0.1
+2025-08-19 14:31:38,388 - RouterManager - INFO - gRPC server stopped for 127.0.0.1
+2025-08-19 14:31:38,389 - RouterManager - INFO - Socket server stopped for 127.0.0.1
+2025-08-19 14:31:38,389 - RouterManager - ERROR - Socket server error: [WinError 10038] An operation was attempted on something that is not a socket
+Traceback (most recent call last):
+  File "E:\cloud-architecture-simulation\router_manager.py", line 87, in _handle_socket_connections
+    client_socket, addr = self.socket_server.accept()
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
+    fd, addr = self._accept()
+OSError: [WinError 10038] An operation was attempted on something that is not a socket
+2025-08-19 14:34:33,672 - pyftpdlib - INFO - concurrency model: async
+2025-08-19 14:34:33,673 - pyftpdlib - INFO - masquerade (NAT) address: None
+2025-08-19 14:34:33,673 - pyftpdlib - INFO - passive ports: None
+2025-08-19 14:34:33,674 - pyftpdlib - INFO - >>> starting FTP server on 0.0.0.0:2120, pid=5072 <<<
+2025-08-19 14:40:20,222 - pyftpdlib - INFO - 127.0.0.1:55658-[] FTP session opened (connect)
+2025-08-19 14:40:20,285 - pyftpdlib - INFO - 127.0.0.1:55658-[] FTP session closed (disconnect).
+2025-08-19 14:40:23,558 - RouterManager - ERROR - Error processing socket message: Expecting value: line 1 column 1 (char 0)
+Traceback (most recent call last):
+  File "E:\cloud-architecture-simulation\router_manager.py", line 97, in _process_socket_message
+    message = json.loads(data)
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\json\__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\json\decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\json\decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+2025-08-19 14:40:33,546 - pyftpdlib - INFO - >>> shutting down FTP server, 0 socket(s), pid=5072 <<<
+2025-08-19 14:40:33,546 - RouterManager - INFO - FTP server stopped for 127.0.0.1
+2025-08-19 14:40:33,549 - RouterManager - INFO - gRPC server stopped for 127.0.0.1
+2025-08-19 14:40:33,549 - RouterManager - INFO - Socket server stopped for 127.0.0.1
+2025-08-19 14:40:33,550 - RouterManager - ERROR - Socket server error: [WinError 10038] An operation was attempted on something that is not a socket
+Traceback (most recent call last):
+  File "E:\cloud-architecture-simulation\router_manager.py", line 87, in _handle_socket_connections
+    client_socket, addr = self.socket_server.accept()
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
+    fd, addr = self._accept()
+OSError: [WinError 10038] An operation was attempted on something that is not a socket
+2025-08-19 14:45:09,415 - pyftpdlib - INFO - concurrency model: async
+2025-08-19 14:45:09,415 - pyftpdlib - INFO - masquerade (NAT) address: None
+2025-08-19 14:45:09,416 - pyftpdlib - INFO - passive ports: None
+2025-08-19 14:45:09,418 - pyftpdlib - INFO - >>> starting FTP server on 0.0.0.0:2120, pid=9504 <<<
+2025-08-19 14:57:56,110 - pyftpdlib - INFO - 127.0.0.1:56835-[] FTP session opened (connect)
+2025-08-19 14:57:56,203 - pyftpdlib - INFO - 127.0.0.1:56835-[] FTP session closed (disconnect).
+2025-08-19 14:58:02,307 - RouterManager - ERROR - Error processing socket message: Expecting value: line 1 column 1 (char 0)
+Traceback (most recent call last):
+  File "E:\cloud-architecture-simulation\router_manager.py", line 97, in _process_socket_message
+    self.logger.error(f"Socket server error: {e}", exc_info=True)
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\json\__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\json\decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\json\decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+2025-08-19 14:58:09,363 - pyftpdlib - INFO - >>> shutting down FTP server, 0 socket(s), pid=9504 <<<
+2025-08-19 14:58:09,363 - RouterManager - INFO - FTP server stopped for 127.0.0.1
+2025-08-19 14:58:09,365 - RouterManager - INFO - gRPC server stopped for 127.0.0.1
+2025-08-19 14:58:09,366 - RouterManager - INFO - Socket server stopped for 127.0.0.1
+2025-08-19 14:58:09,367 - RouterManager - ERROR - Socket server error: [WinError 10038] An operation was attempted on something that is not a socket
+Traceback (most recent call last):
+  File "E:\cloud-architecture-simulation\router_manager.py", line 87, in _handle_socket_connections
+    self.socket_server.close()
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
+    fd, addr = self._accept()
+OSError: [WinError 10038] An operation was attempted on something that is not a socket
+2025-08-19 15:00:02,841 - pyftpdlib - INFO - concurrency model: async
+2025-08-19 15:00:02,842 - pyftpdlib - INFO - masquerade (NAT) address: None
+2025-08-19 15:00:02,842 - pyftpdlib - INFO - passive ports: None
+2025-08-19 15:00:02,843 - pyftpdlib - INFO - >>> starting FTP server on 0.0.0.0:2120, pid=9192 <<<
+2025-08-19 15:03:51,883 - pyftpdlib - INFO - >>> shutting down FTP server, 0 socket(s), pid=9192 <<<
+2025-08-19 15:03:51,883 - RouterManager - INFO - FTP server stopped for 127.0.0.1
+2025-08-19 15:03:51,885 - RouterManager - INFO - gRPC server stopped for 127.0.0.1
+2025-08-19 15:03:51,887 - RouterManager - INFO - Socket server stopped for 127.0.0.1
+2025-08-19 15:03:51,887 - RouterManager - ERROR - Socket server error: [WinError 10038] An operation was attempted on something that is not a socket
+Traceback (most recent call last):
+  File "E:\cloud-architecture-simulation\router_manager.py", line 94, in _handle_socket_connections
+    client_socket, addr = self.socket_server.accept()
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
+    fd, addr = self._accept()
+OSError: [WinError 10038] An operation was attempted on something that is not a socket

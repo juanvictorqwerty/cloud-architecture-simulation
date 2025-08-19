@@ -10,18 +10,21 @@ import time
 import re
 import shutil
 from node_ftp_handler import NodeFTPHandler
-from config import IP_MAP, SERVER_IP, SERVER_SOCKET_PORT, SERVER_FTP_PORT
+from config import IP_MAP, SERVER_IP, SERVER_SOCKET_PORT, SERVER_FTP_PORT, SERVER_GRPC_PORT
+from grpc_client import GRPCClient
 
 class VirtualNetwork:
     def __init__(self, manager=None):
         self.manager = manager
         self.ip_map = IP_MAP
         self.ftp_servers = {}
+        self.grpc_client = GRPCClient()
         self.bandwidth_bytes_per_sec = 125_000_000
         self.header_size = 32
         self.server_ip = SERVER_IP
         self.server_port = SERVER_SOCKET_PORT
         self.server_ftp_port = SERVER_FTP_PORT
+        self.server_grpc_port = SERVER_GRPC_PORT
         self.server_disk_path = "./assets/server/"
         self.transfer_semaphore = threading.Semaphore(10)
         self.target_chunk_time = 0.1
@@ -142,6 +145,26 @@ class VirtualNetwork:
             return f"Sent {filename} ({size} bytes) to {target_ip} for forwarding to {target_node_name}"
         except Exception as e:
             return f"Error sending file to {target_ip}: {e}"
+
+    def send_file_grpc(self, filename, source_ip, virtual_disk, target_node_name=None):
+        """Send a file using gRPC instead of FTP"""
+        if source_ip not in self.ip_map:
+            return f"Error: Source IP {source_ip} not found"
+        if filename not in virtual_disk:
+            return f"Error: File {filename} not found on {source_ip}"
+
+        source_node_name = self.ip_map[source_ip]["node_name"]
+        source_path = os.path.join(self.ip_map[source_ip]["disk_path"], filename)
+
+        # Use gRPC client to send file to router
+        result = self.grpc_client.send_file(
+            file_path=source_path,
+            filename=filename,
+            target_node=target_node_name,
+            sender_node=source_node_name,
+            port=self.server_grpc_port
+        )
+        return result
 
     def forward_file(self, folder_name, target_node_name, *, is_replication=False, original_filename=None):
         """Forward pending files to the target node in a separate thread."""
