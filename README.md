@@ -1,1 +1,2 @@
-Ok this server is more like a router 
+Don't mind the error FTP
+It will be fine

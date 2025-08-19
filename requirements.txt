@@ -1,2 +1,4 @@
 python = 3.10
-pyftplib
+grpcio>=1.50.0
+grpcio-tools>=1.50.0
+protobuf>=4.21.0

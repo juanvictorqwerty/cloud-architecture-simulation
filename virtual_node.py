@@ -1,23 +1,27 @@
 import os
 import json
-import socket
-from virtual_network import VirtualNetwork
 import threading
-from config import IP_MAP, SERVER_IP, SERVER_SOCKET_PORT
+from virtual_network import VirtualNetwork
+from config import IP_MAP, SERVER_GRPC_PORT
+from grpc_server import GRPCServer
+from grpc_client import GRPCClient
 
 class VirtualNode:
-    def __init__(self, name, disk_path, ip_address, ftp_port):
+    def __init__(self, name, disk_path, ip_address):
         self.name = name
         self.disk_path = disk_path
         self.ip_address = ip_address
-        self.ftp_port = ftp_port
+        self.grpc_port = IP_MAP[ip_address]["grpc_port"]
         self.virtual_disk = {}
         self.memory = {}
         self.is_running = False
         self.ip_map = IP_MAP
         self.network = VirtualNetwork()
+        self.grpc_server = None
+        self.grpc_client = GRPCClient()
         self._initialize_disk()
-        self.network.start_ftp_server(self, ip_address, ftp_port, disk_path)
+        # Start gRPC server only
+        self._start_grpc_server()
         self.start()
 
     def _initialize_disk(self):
@@ -50,51 +54,228 @@ class VirtualNode:
         except IOError as e:
             print(f"Error saving metadata to {metadata_path}: {e}")
 
+    def _start_grpc_server(self):
+        """Start the gRPC server for this node"""
+        try:
+            # Nodes are not routers, so is_router=False (default)
+            self.grpc_server = GRPCServer(self.name, self.disk_path, self.grpc_port, is_router=False)
+
+            # Start server in a separate thread
+            def start_server():
+                result = self.grpc_server.start()
+                if result is None:
+                    print(f"gRPC server failed to start for {self.name}")
+                    self.grpc_server = None
+                else:
+                    print(f"gRPC server successfully started for {self.name}")
+
+            server_thread = threading.Thread(target=start_server, daemon=True)
+            server_thread.start()
+
+        except Exception as e:
+            print(f"Exception starting gRPC server for {self.name}: {e}")
+            self.grpc_server = None
+
     def send(self, filename, target_node_name):
         if not self.is_running:
             return f"Error: VM {self.name} is not running"
-        
+
         if not any(node_info['node_name'] == target_node_name for node_info in self.ip_map.values()):
             return f"Error: Target node '{target_node_name}' does not exist."
 
-        target_ip = self.network.server_ip
-        result = [None]  # Use a list to store result, as nonlocal variables in inner functions need mutable objects
-        def send_task():
+        if filename not in self.virtual_disk:
+            return f"Error: File {filename} not found locally"
+
+        # Check if transfer is allowed based on links
+        from links_manager import LinksManager
+        lm = LinksManager()
+
+        if not lm.is_transfer_allowed(self.name, target_node_name):
+            return f"Error: Transfer denied. Nodes {self.name} and {target_node_name} are not in the same link."
+
+        # Use gRPC to send file via router
+        file_path = os.path.join(self.disk_path, filename)
+
+        try:
+            result = self.grpc_client.send_file(
+                file_path=file_path,
+                filename=filename,
+                target_node=target_node_name,
+                sender_node=self.name,
+                port=SERVER_GRPC_PORT
+            )
+            return result
+        except Exception as e:
+            return f"Error sending file via gRPC: {e}"
+    
+    # ----------  UPLOAD ----------
+    def upload(self, filename):
+        if not self.is_running:
+            return f"Error: VM {self.name} is not running"
+        if filename not in self.virtual_disk:
+            return f"Error: File {filename} not found locally"
+
+        cloud_nodes = ["cloud1", "cloud2", "cloud3"]
+        file_path = os.path.join(self.disk_path, filename)
+
+        # Upload to ALL cloud nodes for redundancy
+        successful_uploads = []
+        failed_uploads = []
+
+        for target_cloud in cloud_nodes:
             try:
-                result[0] = self.network.send_file(filename, self.ip_address, self.virtual_disk, target_node_name)
-            except Exception as e:
-                result[0] = f"Error in send_file thread: {e}"
-        
-        thread = threading.Thread(target=send_task)
-        thread.start()
-        thread.join()  # Wait for the thread to complete to get the result
-        return result[0] if result[0] else f"Attempting to send {filename} to {target_node_name} in the background."
+                # Use gRPC to upload to cloud node via router
+                result = self.grpc_client.send_file(
+                    file_path=file_path,
+                    filename=filename,
+                    target_node=target_cloud,
+                    sender_node=self.name,
+                    port=SERVER_GRPC_PORT
+                )
+
+                if "Error" not in result:
+                    successful_uploads.append(target_cloud)
+                else:
+                    failed_uploads.append(target_cloud)
+
+            except Exception:
+                failed_uploads.append(target_cloud)
+
+        if successful_uploads:
+            return f"✓ Uploaded to {len(successful_uploads)}/3 clouds"
+        else:
+            return "✗ Upload failed"
+
+    # ----------  DOWNLOAD ----------
+    def download(self, filename):
+        if not self.is_running:
+            return f"Error: VM {self.name} is not running"
+
+        from links_manager import LinksManager   # local import to avoid circular
+        lm = LinksManager()
+
+        # discover which cloud node owns the file
+        owner = None
+        for cloud in ["cloud1", "cloud2", "cloud3"]:
+            if filename in VirtualNode._peek_virtual_disk(cloud):
+                owner = cloud
+                break
+        if not owner:
+            return f"Error: {filename} not found in any cloud node"
+
+        # link check
+        # Cloud nodes bypass link checks for downloads
+        # if not any({self.name, owner} <= set(nodes) for nodes in lm.links.values()):
+        #     return f"Error: {self.name} and {owner} are not in the same link – download denied"
+
+        # Download the file from the cloud node via router
+        owner_grpc_port = next(info["grpc_port"] for info in IP_MAP.values() if info["node_name"] == owner)
+
+        # First check if file exists on the cloud node
+        file_info = self.grpc_client.get_file_info(filename, owner_grpc_port)
+        if not file_info or not file_info['exists']:
+            return f"✗ {filename} not found"
+
+        # Request the cloud node to send the file to us via the router using gRPC
+        try:
+            # Use the existing send mechanism but from cloud to this node
+            owner_ip = next(ip for ip, info in IP_MAP.items() if info["node_name"] == owner)
+
+            # Request router to coordinate transfer from cloud to this node via gRPC
+            result = self.network.send_file_grpc(filename, owner_ip, VirtualNode._peek_virtual_disk(owner), self.name)
+
+            if "Error" not in result:
+                # Wait a moment for file transfer to complete
+                import time
+                time.sleep(2)
+
+                # Refresh disk and check if file was received
+                self._refresh_disk()
+                local_file_path = os.path.join(self.disk_path, filename)
+                if os.path.exists(local_file_path):
+                    file_size = os.path.getsize(local_file_path)
+                    self.virtual_disk[filename] = file_size
+                    self._save_disk()
+                    return f"✓ Downloaded {filename}"
+                else:
+                    return f"⏳ Transfer in progress"
+            else:
+                return f"✗ Download failed"
+
+        except Exception:
+            return f"✗ Download failed"
+
+    # ----------  helper ----------
+    @staticmethod
+    def _peek_virtual_disk(node_name):
+        """return the virtual_disk dict of a cloud node without instantiating it"""
+        disk_path = next(info["disk_path"] for info in IP_MAP.values() if info["node_name"] == node_name)
+        meta = os.path.join(disk_path, "disk_metadata.json")
+        if not os.path.exists(meta):
+            return {}
+        try:
+            with open(meta) as f:
+                return {k: int(v) for k, v in json.load(f).items() if not k.endswith(".metadata")}
+        except Exception:
+            return {}
 
     def start(self):
         if self.is_running:
             return f"VM {self.name} is already running"
         self.is_running = True
+
+        # Register with router via gRPC (silently)
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect((SERVER_IP, SERVER_SOCKET_PORT))
-            message = json.dumps({"action": "node_started", "node_name": self.name})
-            sock.send(message.encode())
-            sock.close()
-            print(f"VM {self.name} started")
-        except Exception as e:
-            print(f"Error notifying router of start: {e}")
-        return f"VM {self.name} started"
+            self.grpc_client.register_node(
+                node_name=self.name,
+                ip_address=self.ip_address,
+                port=self.grpc_port,
+                router_port=SERVER_GRPC_PORT
+            )
+        except Exception:
+            pass  # Silent registration
+
+        return f"✓ {self.name} started"
 
     def stop(self):
         if not self.is_running:
-            return f"VM {self.name} is already stopped"
+            return f"{self.name} already stopped"
         self.is_running = False
-        self.network.stop_ftp_server(self.ip_address)
-        print(f"VM {self.name} stopped")
-        return f"VM {self.name} stopped"
+
+        # Unregister from router via gRPC (silently)
+        try:
+            self.grpc_client.unregister_node(
+                node_name=self.name,
+                ip_address=self.ip_address,
+                port=self.grpc_port,
+                router_port=SERVER_GRPC_PORT
+            )
+        except Exception:
+            pass  # Silent unregistration
+
+        # Stop gRPC server
+        if self.grpc_server:
+            self.grpc_server.stop()
+
+        return f"✓ {self.name} stopped"
+
+    def _refresh_disk(self):
+        # Clear existing virtual disk entries, but keep metadata if it exists
+        self.virtual_disk = {k: v for k, v in self.virtual_disk.items() if k == "disk_metadata.json"}
+        for filename in os.listdir(self.disk_path):
+            if filename != "disk_metadata.json":
+                file_path = os.path.join(self.disk_path, filename)
+                if os.path.isfile(file_path):
+                    size = os.path.getsize(file_path)
+                    self.virtual_disk[filename] = size
+        self._save_disk()
 
     def ls(self):
-        return "\n".join([f"{k} ({v} bytes)" for k, v in self.virtual_disk.items() if k != "disk_metadata.json"])
+        self._refresh_disk()
+        files = [f"{k} ({v} bytes)" for k, v in self.virtual_disk.items() if k != "disk_metadata.json"]
+        if not files:
+            return "No files found"
+        return "\n".join(files)
 
     def touch(self, filename, size=0):
         if filename in self.virtual_disk:
@@ -164,6 +345,50 @@ class VirtualNode:
             return f"{var_name} = {self.memory[var_name]}"
         return f"Error: Variable {var_name} not found in memory"
 
+    def _is_cloud_node(self, name):
+        return name.startswith("cloud")
+
+    def _in_same_link(self, target):
+        """Check if `self.name` and `target` appear in the same link."""
+        import links_manager  # local import
+        lm = links_manager.LinksManager()
+        for members in lm.links.values():
+            if self.name in members and target in members:
+                return True
+        return False
+
+    def get(self, filename, source_node_name):
+        """
+        Simulate a download:
+        - If source is a cloud node we allow it regardless of links.
+        - Otherwise the two nodes must share a link.
+        """
+        if not self.is_running:
+            return f"Error: VM {self.name} is not running"
+
+        if source_node_name == self.name:
+            return "Error: Cannot get a file from yourself"
+
+        # Does the source node exist?
+        src_ip = None
+        for ip, info in self.ip_map.items():
+            if info["node_name"] == source_node_name:
+                src_ip = ip
+                break
+        if not src_ip:
+            return f"Error: Source node {source_node_name} does not exist"
+
+        # Cloud nodes bypass link checks
+        if not self._is_cloud_node(source_node_name) and not self._in_same_link(source_node_name):
+            return f"Error: Node {self.name} and {source_node_name} are not in the same link"
+
+        # Pull from source
+        try:
+            result = self.network.send_file(filename, src_ip, self.network.ip_map[src_ip]["disk_path"], self.name)
+            return result.replace("sent", "downloaded")
+        except Exception as e:
+            return f"Error downloading {filename}: {e}"
+
     def execute_instruction(self, instruction):
         if not self.is_running:
             return f"Error: VM {self.name} is not running"
@@ -214,11 +439,17 @@ class VirtualNode:
                     print(self.get_var(command[1]))
                 elif cmd == "add" and len(command) == 3:
                     print(self.execute_instruction(" ".join(command)))
+                elif cmd == "get" and len(command) == 3:
+                    print(self.get(command[1], command[2]))
+                elif cmd == "upload" and len(command) == 2:
+                    print(self.upload(command[1]))
+                elif cmd == "download" and len(command) == 2:
+                    print(self.download(command[1]))
                 elif cmd == "stop":
                     print(self.stop())
                     break
                 else:
-                    print("Invalid command. Use: ls, touch <filename> [size], trunc <filename> [size], send <filename> <node_name>, del <filename|all>, diskprop, stop")
+                    print("Invalid command. Use: Valid commands: ls, touch <file> [size], trunc <file> [size],send <file> <node>, upload <file>, download <file>, del <file|all>, diskprop, stop")
             except EOFError:
                 print("\nEOF detected. Stopping VM.")
                 print(self.stop())

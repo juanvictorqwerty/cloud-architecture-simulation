@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package file_transfer;
+
+// Service for file transfer operations
+service FileTransferService {
+    // Transfer a file chunk
+    rpc TransferChunk(FileChunk) returns (TransferResponse);
+    
+    // Start a file transfer session
+    rpc StartTransfer(TransferRequest) returns (TransferResponse);
+    
+    // Complete a file transfer session
+    rpc CompleteTransfer(CompleteTransferRequest) returns (TransferResponse);
+    
+    // Get file information
+    rpc GetFileInfo(FileInfoRequest) returns (FileInfoResponse);
+    
+    // List files in a directory
+    rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+}
+
+// Service for node management
+service NodeManagementService {
+    // Register a node as active
+    rpc RegisterNode(NodeRegistration) returns (NodeResponse);
+    
+    // Unregister a node
+    rpc UnregisterNode(NodeRegistration) returns (NodeResponse);
+    
+    // Get active nodes
+    rpc GetActiveNodes(Empty) returns (ActiveNodesResponse);
+    
+    // Health check
+    rpc HealthCheck(Empty) returns (HealthResponse);
+}
+
+// Messages for file transfer
+message FileChunk {
+    string transfer_id = 1;
+    int32 chunk_number = 2;
+    int32 total_chunks = 3;
+    bytes data = 4;
+    string filename = 5;
+    string target_node = 6;
+    string sender_node = 7;
+}
+
+message TransferRequest {
+    string filename = 1;
+    int64 file_size = 2;
+    string target_node = 3;
+    string sender_node = 4;
+}
+
+message CompleteTransferRequest {
+    string transfer_id = 1;
+    string filename = 2;
+    string target_node = 3;
+}
+
+message TransferResponse {
+    bool success = 1;
+    string message = 2;
+    string transfer_id = 3;
+}
+
+message FileInfoRequest {
+    string filename = 1;
+}
+
+message FileInfoResponse {
+    bool exists = 1;
+    int64 size = 2;
+    string message = 3;
+}
+
+message ListFilesRequest {
+    string path = 1;
+}
+
+message ListFilesResponse {
+    repeated FileEntry files = 1;
+    string message = 2;
+}
+
+message FileEntry {
+    string name = 1;
+    int64 size = 2;
+    bool is_directory = 3;
+}
+
+// Messages for node management
+message NodeRegistration {
+    string node_name = 1;
+    string ip_address = 2;
+    int32 port = 3;
+}
+
+message NodeResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ActiveNodesResponse {
+    repeated string node_names = 1;
+}
+
+message HealthResponse {
+    bool healthy = 1;
+    string message = 2;
+}
+
+message Empty {}
