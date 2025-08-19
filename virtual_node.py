@@ -189,8 +189,7 @@ class VirtualNode:
         # if not any({self.name, owner} <= set(nodes) for nodes in lm.links.values()):
         #     return f"Error: {self.name} and {owner} are not in the same link – download denied"
 
-        # trigger router-mediated transfer using gRPC
-        # For download, we request the file from the cloud node via the router
+        # Download the file from the cloud node via router
         owner_grpc_port = next(info["grpc_port"] for info in IP_MAP.values() if info["node_name"] == owner)
 
         # First check if file exists on the cloud node
@@ -198,11 +197,65 @@ class VirtualNode:
         if not file_info or not file_info['exists']:
             return f"Error: {filename} not found on {owner}"
 
-        # Request file transfer from cloud node to this node via router
-        # This is a simplified approach - in a full implementation, we'd need
-        # to coordinate with the router to handle the transfer
-        result = f"Download request for {filename} from {owner} initiated"
-        return result
+        print(f"Requesting download of {filename} from {owner}...")
+
+        # Request the cloud node to send the file to us via the router
+        # This simulates a "pull" request by having the cloud send to us
+        try:
+            # Use the existing send mechanism but from cloud to this node
+            owner_ip = next(ip for ip, info in IP_MAP.items() if info["node_name"] == owner)
+
+            # Try gRPC first
+            if self.grpc_server is not None:
+                try:
+                    # Request router to coordinate transfer from cloud to this node
+                    # We'll use the router as intermediary
+                    result = self.network.send_file(filename, owner_ip, VirtualNode._peek_virtual_disk(owner), self.name)
+
+                    if "Error" not in result:
+                        # Wait a moment for file transfer to complete
+                        import time
+                        time.sleep(1)
+
+                        # Refresh disk and check if file was received
+                        self._refresh_disk()
+                        local_file_path = os.path.join(self.disk_path, filename)
+                        if os.path.exists(local_file_path):
+                            file_size = os.path.getsize(local_file_path)
+                            self.virtual_disk[filename] = file_size
+                            self._save_disk()
+                            return f"Downloaded {filename} from {owner} ({file_size} bytes)"
+                        else:
+                            return f"Transfer initiated but file not yet received. Try 'ls' in a moment."
+                    else:
+                        return f"Error downloading {filename}: {result}"
+
+                except Exception as e:
+                    return f"Error during download: {e}"
+            else:
+                # Fall back to FTP method
+                result = self.network.send_file(filename, owner_ip, VirtualNode._peek_virtual_disk(owner), self.name)
+
+                if "Error" not in result:
+                    # Wait a moment for file transfer to complete
+                    import time
+                    time.sleep(1)
+
+                    # Check if file was received and update virtual disk
+                    self._refresh_disk()
+                    local_file_path = os.path.join(self.disk_path, filename)
+                    if os.path.exists(local_file_path):
+                        file_size = os.path.getsize(local_file_path)
+                        self.virtual_disk[filename] = file_size
+                        self._save_disk()
+                        return f"Downloaded {filename} from {owner} ({file_size} bytes)"
+                    else:
+                        return f"Transfer initiated but file not yet received. Try 'ls' in a moment."
+
+                return result.replace("sent", "downloaded")
+
+        except Exception as e:
+            return f"Error downloading {filename}: {e}"
 
     # ----------  helper ----------
     @staticmethod
@@ -293,7 +346,10 @@ class VirtualNode:
 
     def ls(self):
         self._refresh_disk()
-        return "\n".join([f"{k} ({v} bytes)" for k, v in self.virtual_disk.items() if k != "disk_metadata.json"])
+        files = [f"{k} ({v} bytes)" for k, v in self.virtual_disk.items() if k != "disk_metadata.json"]
+        if not files:
+            return "No files found"
+        return "\n".join(files)
 
     def touch(self, filename, size=0):
         if filename in self.virtual_disk:
