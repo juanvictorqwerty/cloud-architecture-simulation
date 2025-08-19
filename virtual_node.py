@@ -1,19 +1,16 @@
 import os
 import json
-import socket
-from virtual_network import VirtualNetwork
 import threading
-from config import IP_MAP, SERVER_IP, SERVER_SOCKET_PORT, SERVER_GRPC_PORT
-import file_store
+from virtual_network import VirtualNetwork
+from config import IP_MAP, SERVER_GRPC_PORT
 from grpc_server import GRPCServer
 from grpc_client import GRPCClient
 
 class VirtualNode:
-    def __init__(self, name, disk_path, ip_address, ftp_port):
+    def __init__(self, name, disk_path, ip_address):
         self.name = name
         self.disk_path = disk_path
         self.ip_address = ip_address
-        self.ftp_port = ftp_port
         self.grpc_port = IP_MAP[ip_address]["grpc_port"]
         self.virtual_disk = {}
         self.memory = {}
@@ -23,8 +20,7 @@ class VirtualNode:
         self.grpc_server = None
         self.grpc_client = GRPCClient()
         self._initialize_disk()
-        # Start both FTP (for backward compatibility) and gRPC servers
-        self.network.start_ftp_server(self, ip_address, ftp_port, disk_path)
+        # Start gRPC server only
         self._start_grpc_server()
         self.start()
 
@@ -90,28 +86,27 @@ class VirtualNode:
         if filename not in self.virtual_disk:
             return f"Error: File {filename} not found locally"
 
-        # Try gRPC first, fall back to FTP
+        # Check if transfer is allowed based on links
+        from links_manager import LinksManager
+        lm = LinksManager()
+
+        if not lm.is_transfer_allowed(self.name, target_node_name):
+            return f"Error: Transfer denied. Nodes {self.name} and {target_node_name} are not in the same link."
+
+        # Use gRPC to send file via router
         file_path = os.path.join(self.disk_path, filename)
 
-        # Try gRPC if server is available
-        if self.grpc_server is not None:
-            try:
-                result = self.grpc_client.send_file(
-                    file_path=file_path,
-                    filename=filename,
-                    target_node=target_node_name,
-                    sender_node=self.name,
-                    port=SERVER_GRPC_PORT
-                )
-                if "Error" not in result:
-                    return result
-                print(f"gRPC send failed, falling back to FTP: {result}")
-            except Exception as e:
-                print(f"gRPC send exception, falling back to FTP: {e}")
-
-        # Fall back to FTP (existing working method)
-        result = self.network.send_file(filename, self.ip_address, self.virtual_disk, target_node_name)
-        return result
+        try:
+            result = self.grpc_client.send_file(
+                file_path=file_path,
+                filename=filename,
+                target_node=target_node_name,
+                sender_node=self.name,
+                port=SERVER_GRPC_PORT
+            )
+            return result
+        except Exception as e:
+            return f"Error sending file via gRPC: {e}"
     
     # ----------  UPLOAD ----------
     def upload(self, filename):
@@ -129,27 +124,14 @@ class VirtualNode:
 
         for target_cloud in cloud_nodes:
             try:
-                # Try gRPC first, fall back to FTP
-                result = None
-
-                if self.grpc_server is not None:
-                    try:
-                        result = self.grpc_client.send_file(
-                            file_path=file_path,
-                            filename=filename,
-                            target_node=target_cloud,
-                            sender_node=self.name,
-                            port=SERVER_GRPC_PORT
-                        )
-                        if "Error" in result:
-                            result = None  # Will try FTP
-                    except Exception as e:
-                        print(f"gRPC upload to {target_cloud} failed: {e}, trying FTP")
-                        result = None
-
-                # Fall back to FTP if gRPC failed or unavailable
-                if result is None:
-                    result = self.network.send_file(filename, self.ip_address, self.virtual_disk, target_cloud)
+                # Use gRPC to upload to cloud node via router
+                result = self.grpc_client.send_file(
+                    file_path=file_path,
+                    filename=filename,
+                    target_node=target_cloud,
+                    sender_node=self.name,
+                    port=SERVER_GRPC_PORT
+                )
 
                 if "Error" not in result:
                     successful_uploads.append(target_cloud)
@@ -199,60 +181,31 @@ class VirtualNode:
 
         print(f"Requesting download of {filename} from {owner}...")
 
-        # Request the cloud node to send the file to us via the router
-        # This simulates a "pull" request by having the cloud send to us
+        # Request the cloud node to send the file to us via the router using gRPC
         try:
             # Use the existing send mechanism but from cloud to this node
             owner_ip = next(ip for ip, info in IP_MAP.items() if info["node_name"] == owner)
 
-            # Try gRPC first
-            if self.grpc_server is not None:
-                try:
-                    # Request router to coordinate transfer from cloud to this node
-                    # We'll use the router as intermediary
-                    result = self.network.send_file(filename, owner_ip, VirtualNode._peek_virtual_disk(owner), self.name)
+            # Request router to coordinate transfer from cloud to this node via gRPC
+            result = self.network.send_file_grpc(filename, owner_ip, VirtualNode._peek_virtual_disk(owner), self.name)
 
-                    if "Error" not in result:
-                        # Wait a moment for file transfer to complete
-                        import time
-                        time.sleep(1)
+            if "Error" not in result:
+                # Wait a moment for file transfer to complete
+                import time
+                time.sleep(2)
 
-                        # Refresh disk and check if file was received
-                        self._refresh_disk()
-                        local_file_path = os.path.join(self.disk_path, filename)
-                        if os.path.exists(local_file_path):
-                            file_size = os.path.getsize(local_file_path)
-                            self.virtual_disk[filename] = file_size
-                            self._save_disk()
-                            return f"Downloaded {filename} from {owner} ({file_size} bytes)"
-                        else:
-                            return f"Transfer initiated but file not yet received. Try 'ls' in a moment."
-                    else:
-                        return f"Error downloading {filename}: {result}"
-
-                except Exception as e:
-                    return f"Error during download: {e}"
+                # Refresh disk and check if file was received
+                self._refresh_disk()
+                local_file_path = os.path.join(self.disk_path, filename)
+                if os.path.exists(local_file_path):
+                    file_size = os.path.getsize(local_file_path)
+                    self.virtual_disk[filename] = file_size
+                    self._save_disk()
+                    return f"Downloaded {filename} from {owner} ({file_size} bytes)"
+                else:
+                    return f"Transfer initiated but file not yet received. Try 'ls' in a moment."
             else:
-                # Fall back to FTP method
-                result = self.network.send_file(filename, owner_ip, VirtualNode._peek_virtual_disk(owner), self.name)
-
-                if "Error" not in result:
-                    # Wait a moment for file transfer to complete
-                    import time
-                    time.sleep(1)
-
-                    # Check if file was received and update virtual disk
-                    self._refresh_disk()
-                    local_file_path = os.path.join(self.disk_path, filename)
-                    if os.path.exists(local_file_path):
-                        file_size = os.path.getsize(local_file_path)
-                        self.virtual_disk[filename] = file_size
-                        self._save_disk()
-                        return f"Downloaded {filename} from {owner} ({file_size} bytes)"
-                    else:
-                        return f"Transfer initiated but file not yet received. Try 'ls' in a moment."
-
-                return result.replace("sent", "downloaded")
+                return f"Error downloading {filename}: {result}"
 
         except Exception as e:
             return f"Error downloading {filename}: {e}"
@@ -276,35 +229,20 @@ class VirtualNode:
             return f"VM {self.name} is already running"
         self.is_running = True
 
-        # Try to register with router via gRPC first
-        grpc_registered = False
+        # Register with router via gRPC
         try:
-            if self.grpc_server is not None:
-                success = self.grpc_client.register_node(
-                    node_name=self.name,
-                    ip_address=self.ip_address,
-                    port=self.grpc_port,
-                    router_port=SERVER_GRPC_PORT
-                )
-                if success:
-                    print(f"VM {self.name} registered with router via gRPC")
-                    grpc_registered = True
-                else:
-                    print(f"Failed to register {self.name} with router via gRPC")
+            success = self.grpc_client.register_node(
+                node_name=self.name,
+                ip_address=self.ip_address,
+                port=self.grpc_port,
+                router_port=SERVER_GRPC_PORT
+            )
+            if success:
+                print(f"VM {self.name} registered with router via gRPC")
+            else:
+                print(f"Failed to register {self.name} with router via gRPC")
         except Exception as e:
             print(f"gRPC registration failed: {e}")
-
-        # Fall back to socket registration if gRPC failed
-        if not grpc_registered:
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.connect((SERVER_IP, SERVER_SOCKET_PORT))
-                message = json.dumps({"action": "node_started", "node_name": self.name})
-                sock.send(message.encode())
-                sock.close()
-                print(f"VM {self.name} registered with router via socket")
-            except Exception as e:
-                print(f"Socket registration failed: {e}")
 
         print(f"VM {self.name} started")
         return f"VM {self.name} started"
@@ -325,8 +263,7 @@ class VirtualNode:
         except Exception as e:
             print(f"Error unregistering from router: {e}")
 
-        # Stop servers
-        self.network.stop_ftp_server(self.ip_address)
+        # Stop gRPC server
         if self.grpc_server:
             self.grpc_server.stop()
 

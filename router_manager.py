@@ -2,24 +2,18 @@ import threading
 import socket
 import logging
 import json
-from pyftpdlib.authorizers import DummyAuthorizer
-from pyftpdlib.handlers import FTPHandler
-from pyftpdlib.servers import FTPServer
 from virtual_network import VirtualNetwork
-from router_ftp_handler import RouterFTPHandler
-from config import SERVER_IP, SERVER_FTP_PORT, SERVER_SOCKET_PORT, SERVER_DISK_PATH, SERVER_GRPC_PORT
+from config import SERVER_IP, SERVER_SOCKET_PORT, SERVER_DISK_PATH, SERVER_GRPC_PORT
 from grpc_server import GRPCServer
 
 class RouterManager:
     def __init__(self):
         self.ip_address = SERVER_IP
-        self.ftp_port = SERVER_FTP_PORT
         self.grpc_port = SERVER_GRPC_PORT
         self.disk_path = SERVER_DISK_PATH
         self.network = VirtualNetwork(self)
         self.pending_files = {}
         self.pending_files_lock = threading.Lock()
-        self.ftp_server = None
         self.grpc_server = None
         self.socket_server = None
         self.socket_port = SERVER_SOCKET_PORT
@@ -40,19 +34,7 @@ class RouterManager:
         self.logger = logging.getLogger("RouterManager")
 
     def start(self):
-        """Start the FTP server, gRPC server, and socket server."""
-        # Start FTP server (for backward compatibility)
-        authorizer = DummyAuthorizer()
-        authorizer.add_user("user", "password", self.disk_path, perm="elradfmw")
-        handler = RouterFTPHandler
-        handler.authorizer = authorizer
-        self.ftp_server = FTPServer(("0.0.0.0", self.ftp_port), handler)
-        self.ftp_server.node = None
-        self.ftp_server.manager = self
-        ftp_thread = threading.Thread(target=self.ftp_server.serve_forever, daemon=True)
-        ftp_thread.start()
-        print(f"FTP server started on {self.ip_address}:{self.ftp_port}")
-
+        """Start the gRPC server and socket server."""
         # Start gRPC server
         self.grpc_server = GRPCServer("router", self.disk_path, self.grpc_port, is_router=True, router_manager=self)
 
@@ -66,7 +48,7 @@ class RouterManager:
         grpc_thread = threading.Thread(target=start_grpc, daemon=True)
         grpc_thread.start()
 
-        # Start socket server
+        # Start socket server (for legacy compatibility)
         self.socket_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket_server.bind(("0.0.0.0", self.socket_port))
@@ -76,10 +58,7 @@ class RouterManager:
         print(f"Socket server started on {self.ip_address}:{self.socket_port}")
 
     def stop(self):
-        """Stop the FTP server, gRPC server, and socket server."""
-        if self.ftp_server:
-            self.ftp_server.close_all()
-            self.logger.info(f"FTP server stopped for {self.ip_address}")
+        """Stop the gRPC server and socket server."""
         if self.grpc_server:
             self.grpc_server.stop()
             self.logger.info(f"gRPC server stopped for {self.ip_address}")

@@ -862,3 +862,27 @@ Traceback (most recent call last):
   File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
     fd, addr = self._accept()
 OSError: [WinError 10038] An operation was attempted on something that is not a socket
+2025-08-19 15:22:18,309 - pyftpdlib - INFO - concurrency model: async
+2025-08-19 15:22:18,309 - pyftpdlib - INFO - masquerade (NAT) address: None
+2025-08-19 15:22:18,310 - pyftpdlib - INFO - passive ports: None
+2025-08-19 15:22:18,310 - pyftpdlib - INFO - >>> starting FTP server on 0.0.0.0:2120, pid=6688 <<<
+2025-08-19 15:23:20,848 - pyftpdlib - INFO - 127.0.0.1:57584-[] FTP session opened (connect)
+2025-08-19 15:23:20,958 - pyftpdlib - INFO - 127.0.0.1:57584-[user] USER 'user' logged in.
+2025-08-19 15:23:22,845 - pyftpdlib - INFO - 127.0.0.1:57584-[user] STOR E:\cloud-architecture-simulation\assets\server\2 completed=1 bytes=2097184 seconds=1.546
+2025-08-19 15:23:23,219 - RouterManager - INFO - Received chunk 1/1 for 2 (folder: file_011, target: node2, sender: cloud1)
+2025-08-19 15:23:23,251 - RouterManager - INFO - Stored 2 in folder file_011 for node2 from cloud1
+2025-08-19 15:23:23,296 - RouterManager - INFO - Target node node2 is active, forwarding 2
+2025-08-19 15:23:23,389 - RouterManager - INFO - Replicating 2 to cloud1
+2025-08-19 15:23:23,405 - RouterManager - INFO - Replicating 2 to cloud2
+2025-08-19 15:23:23,435 - RouterManager - INFO - Replicating 2 to cloud3
+2025-08-19 15:23:23,511 - pyftpdlib - INFO - 127.0.0.1:57584-[user] FTP session closed (disconnect).
+2025-08-19 15:41:35,357 - pyftpdlib - INFO - >>> shutting down FTP server, 0 socket(s), pid=6688 <<<
+2025-08-19 15:41:35,357 - RouterManager - INFO - FTP server stopped for 127.0.0.1
+2025-08-19 15:41:35,359 - RouterManager - INFO - gRPC server stopped for 127.0.0.1
+2025-08-19 15:41:35,360 - RouterManager - INFO - Socket server stopped for 127.0.0.1
+2025-08-19 15:41:35,360 - RouterManager - ERROR - Socket server error: [WinError 10038] An operation was attempted on something that is not a socket
+Traceback (most recent call last):
+  File "E:\cloud-architecture-simulation\router_manager.py", line 94, in _handle_socket_connections
+  File "C:\Users\JUAN MIKE\.conda\envs\Cloudsim\lib\socket.py", line 293, in accept
+    fd, addr = self._accept()
+OSError: [WinError 10038] An operation was attempted on something that is not a socket
