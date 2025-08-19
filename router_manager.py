@@ -104,8 +104,12 @@ class RouterManager:
                 else:
                     self.logger.warning(f"Target node {target_node} not active, transfer failed for {original_filename}")
     
-            # 2) Replicate to every cloud node
+            # 2) replicate to every cloud node
             for ip, info in self.network.ip_map.items():
-                if info["node_name"].startswith("cloud") and info["node_name"] in self.active_nodes and info["node_name"] != target_node:
-                    self.logger.info(f"Replicating {original_filename} to {info['node_name']}")
-                    self.network.forward_file(folder_name, info["node_name"], is_replication=True)
+                if info["node_name"].startswith("cloud") and info["node_name"] != target_node:
+                    filename_to_send = original_filename   # keep original name
+                    self.logger.info(f"Replicating {filename_to_send} to {info['node_name']}")
+                    self.network.forward_file(folder_name,
+                                            info["node_name"],
+                                            is_replication=True,
+                                            original_filename=filename_to_send)

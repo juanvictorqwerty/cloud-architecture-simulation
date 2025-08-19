@@ -154,13 +154,16 @@ class VirtualNetwork:
             ftp = ftplib.FTP()
             ftp.connect(host="127.0.0.1", port=self.server_ftp_port)
             ftp.login(user="user", passwd="password")
-            self._execute_chunked_transfer(ftp, source_path, size, target_filename, target_node_name, source_node_name)
+            self._execute_chunked_transfer(ftp, source_path, size,
+                                target_filename,   #  <<< guaranteed not None
+                                target_node_name,
+                                source_node_name)
             ftp.quit()
             return f"Sent {filename} ({size} bytes) to {target_ip} for forwarding to {target_node_name}"
         except Exception as e:
             return f"Error sending file to {target_ip}: {e}"
 
-    def forward_file(self, folder_name, target_node_name):
+    def forward_file(self, folder_name, target_node_name, *, is_replication=False, original_filename=None):
         """Forward pending files to the target node in a separate thread."""
         def forward_task(folder_name, target_ip, file_path, size, original_filename, sender_node):
             with self.transfer_semaphore:
@@ -168,7 +171,7 @@ class VirtualNetwork:
                     if target_node_name not in self.manager.active_nodes:
                         print(f"Error: Target node {target_node_name} is not active, transfer failed for {original_filename}")
                         return
-                    target_filename = self._get_unique_filename(original_filename, target_ip)
+                    target_filename = original_filename or self._get_unique_filename(original_filename, target_ip)
                     ftp = ftplib.FTP()
                     ftp.connect(host="127.0.0.1", port=self.ip_map[target_ip]["ftp_port"])
                     ftp.login(user="user", passwd="password")

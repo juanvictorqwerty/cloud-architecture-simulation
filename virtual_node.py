@@ -70,6 +70,7 @@ class VirtualNode:
         thread.start()
         thread.join()  # Wait for the thread to complete to get the result
         return result[0] if result[0] else f"Attempting to send {filename} to {target_node_name} in the background."
+    
         # ----------  UPLOAD ----------
     def upload(self, filename):
         if not self.is_running:
@@ -77,43 +78,65 @@ class VirtualNode:
         if filename not in self.virtual_disk:
             return f"Error: File {filename} not found locally"
 
-        from file_store import store
-        store(filename, self.virtual_disk[filename], self.name)
-        return f"Uploaded {filename} (size={self.virtual_disk[filename]} B) from {self.name} → cloud storage"
+        cloud_nodes = ["cloud1", "cloud2", "cloud3"]
+        
+        # Attempt to upload to each cloud node until successful
+        for target_cloud in cloud_nodes:
+            try:
+                # The send_file method will check if the target node is active
+                # and handle the transfer. If the target node is not active,
+                # the router will log a warning and the transfer will fail for that specific cloud node.
+                # We don't need to explicitly check active_nodes here, as the router handles it. The router will also ensure the file keeps its original name.
+                result = self.network.send_file(filename, self.ip_address, self.virtual_disk, target_cloud)
+                if "Error" not in result: # If the transfer was successful to this cloud node
+                    return result.replace("router", f"cloud storage ({target_cloud})")
+            except Exception as e:
+                print(f"Attempt to upload to {target_cloud} failed: {e}")
+        return "Error: Failed to upload file to any active cloud node."
 
     # ----------  DOWNLOAD ----------
     def download(self, filename):
         if not self.is_running:
             return f"Error: VM {self.name} is not running"
 
-        from file_store import fetch, in_same_link
-        meta = fetch(filename)
-        if not meta:
-            return f"Error: {filename} not available in cloud"
+        from links_manager import LinksManager   # local import to avoid circular
+        lm = LinksManager()
 
-        sender = meta["sender"]
-        size = meta["size"]
+        # discover which cloud node owns the file
+        owner = None
+        for cloud in ["cloud1", "cloud2", "cloud3"]:
+            if filename in VirtualNode._peek_virtual_disk(cloud):
+                owner = cloud
+                break
+        if not owner:
+            return f"Error: {filename} not found in any cloud node"
 
-        if not in_same_link(self.name, sender):
-            return f"Error: {self.name} and {sender} are not in the same link – download denied"
+        # link check
+        # Cloud nodes bypass link checks for downloads
+        # if not any({self.name, owner} <= set(nodes) for nodes in lm.links.values()):
+        #     return f"Error: {self.name} and {owner} are not in the same link – download denied"
 
-        # create a local file with identical size (zero-filled)
-        file_path = os.path.join(self.disk_path, filename)
+        # trigger router-mediated transfer
+        result = self.network.send_file(filename,
+                                        next(ip for ip, info in IP_MAP.items() if info["node_name"] == owner),
+                                        VirtualNode._peek_virtual_disk(owner),
+                                        self.name)
+        return result
+
+    # ----------  helper ----------
+    @staticmethod
+    def _peek_virtual_disk(node_name):
+        """return the virtual_disk dict of a cloud node without instantiating it"""
+        disk_path = next(info["disk_path"] for info in IP_MAP.values() if info["node_name"] == node_name)
+        meta = os.path.join(disk_path, "disk_metadata.json")
+        if not os.path.exists(meta):
+            return {}
         try:
-            with open(file_path, "wb") as f:
-                f.write(b"\0" * size)
-            self.virtual_disk[filename] = size
-            self._save_disk()
-        except Exception as e:
-            return f"Error creating file: {e}"
+            with open(meta) as f:
+                return {k: int(v) for k, v in json.load(f).items()}
+        except Exception:
+            return {}
 
-        # fancy fake progress
-        import time, random
-        for i in range(1, 6):
-            print(f"[{self.name}] Downloading {filename} ... {i*20}%")
-            time.sleep(random.uniform(0.2, 0.6))
-        print(f"[{self.name}] Download of {filename} ({size} B) completed")
-        return f"Downloaded {filename} successfully"
     def start(self):
         if self.is_running:
             return f"VM {self.name} is already running"
