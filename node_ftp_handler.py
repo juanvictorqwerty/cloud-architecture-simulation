@@ -77,11 +77,46 @@ class NodeFTPHandler(FTPHandler):
             self.respond("550 Chunk size mismatch")
             return
 
-        original_filename = os.path.basename(file_path)
+        original_filename = self.current_name # Get the original filename from the FTP command argument
+
+        # If this is a metadata file, handle it directly
+        if original_filename.endswith(".metadata"):
+            final_path = os.path.join(node.disk_path, original_filename)
+            try:
+                # If it's the first chunk (and should be the only chunk for metadata)
+                if chunk_number == 1:
+                    if os.path.exists(final_path):
+                        os.remove(final_path) # Remove existing metadata file
+                    with open(final_path, 'wb') as f:
+                        f.write(payload) # Write the payload directly
+                else:
+                    # This case should ideally not happen for metadata files if sent as single chunks
+                    # For now, just append, but this might indicate an issue if metadata is chunked
+                    with open(final_path, 'ab') as f:
+                        f.write(payload)
+
+            except OSError as e:
+                if logger:
+                    logger.error(f"Error writing metadata file to {final_path}: {e}")
+                self.respond(f"550 Error writing metadata file: {e}")
+                return
+
+            node.virtual_disk[original_filename] = os.path.getsize(final_path)
+            node._save_disk()
+            if logger:
+                logger.info(f"Stored metadata file {original_filename} from {sender_node} in {node.disk_path}")
+            self.respond(f"226 Transfer complete: {original_filename} stored from {sender_node}")
+            
+            # Clean up the temporary chunk file
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+            return # Exit, as metadata file is handled
 
         if chunk_number == 1:
-            # Generate a unique filename
-            unique_filename = self._get_unique_filename(original_filename)
+            # Use the original filename
+            unique_filename = original_filename
             self.session_state["current_filename"] = unique_filename
             self.session_state["expected_chunks"] = num_chunks
             self.session_state["received_chunks"] = 1
@@ -115,6 +150,8 @@ class NodeFTPHandler(FTPHandler):
         if self.session_state["received_chunks"] == self.session_state["expected_chunks"]:
             final_path = os.path.join(node.disk_path, self.session_state["current_filename"])
             try:
+                if os.path.exists(final_path):
+                    os.remove(final_path)
                 os.rename(self.session_state["temp_file_path"], final_path)
             except OSError as e:
                 if logger:

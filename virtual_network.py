@@ -50,30 +50,10 @@ class VirtualNetwork:
 
     def _get_unique_filename(self, filename, target_ip):
         """
-        Return the original filename unless the destination already has it.
-        For cloud nodes we do NOT want duplicates, so we still uniquify.
-            """
-        info = self.ip_map.get(target_ip)
-        if info and info["node_name"].startswith("cloud"):
-            # same old logic for cloud
-            try:
-                ftp = ftplib.FTP()
-                ftp.connect(host="127.0.0.1", port=info["ftp_port"])
-                ftp.login(user="user", passwd="password")
-                file_list = ftp.nlst()
-                ftp.quit()
-            except Exception:
-                file_list = []
-                base, ext = os.path.splitext(filename)
-                counter = 1
-                new_filename = filename
-                while new_filename in file_list:
-                        new_filename = f"{base}_{counter}{ext}"
-                        counter += 1
-                return new_filename
-        else:
-                # regular node – keep original
-                return filename
+        Returns the original filename.
+        The receiving node is responsible for ensuring uniqueness if needed.
+        """
+        return filename
             
     def _calculate_chunk_parameters(self, file_size):
         """Calculate optimized chunk size and number of chunks."""
@@ -150,7 +130,7 @@ class VirtualNetwork:
         size = virtual_disk[filename]
 
         try:
-            target_filename = self._get_unique_filename(filename, target_ip)
+            target_filename = filename # Router will receive with original name
             ftp = ftplib.FTP()
             ftp.connect(host="127.0.0.1", port=self.server_ftp_port)
             ftp.login(user="user", passwd="password")
@@ -171,7 +151,7 @@ class VirtualNetwork:
                     if target_node_name not in self.manager.active_nodes:
                         print(f"Error: Target node {target_node_name} is not active, transfer failed for {original_filename}")
                         return
-                    target_filename = original_filename or self._get_unique_filename(original_filename, target_ip)
+                    target_filename = original_filename # Node will receive with original name
                     ftp = ftplib.FTP()
                     ftp.connect(host="127.0.0.1", port=self.ip_map[target_ip]["ftp_port"])
                     ftp.login(user="user", passwd="password")

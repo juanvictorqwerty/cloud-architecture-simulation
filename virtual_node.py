@@ -133,7 +133,7 @@ class VirtualNode:
             return {}
         try:
             with open(meta) as f:
-                return {k: int(v) for k, v in json.load(f).items()}
+                return {k: int(v) for k, v in json.load(f).items() if not k.endswith(".metadata")}
         except Exception:
             return {}
 
